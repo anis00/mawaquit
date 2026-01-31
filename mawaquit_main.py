@@ -22,7 +22,7 @@ import warnings
 
 # Import des modules personnalisés
 from praytimes import PrayTimes
-from isochrones import IsochroneGenerator
+from isochrones import IsochroneGeneratorDirect
 
 warnings.filterwarnings('ignore')
 
@@ -70,7 +70,7 @@ class MawaquitApp:
         self.setup_ui()
 
         # Générateur d'isochrones (initialisé après l'UI)
-        self.isochrone_gen = IsochroneGenerator(self.pray_calc, self.ax)
+        self.isochrone_gen = IsochroneGeneratorDirect(self.pray_calc, self.ax)
 
     def setup_ui(self):
         """Configure l'interface utilisateur"""
@@ -613,10 +613,14 @@ class MawaquitApp:
         )
         self.root.update()
 
+        # Obtenir le nom du pays actuel
+        country_name = self.pays_var.get()
+
         success = self.isochrone_gen.tracer_isochrones(
             prayer_name,
             self.current_gdf,
-            self.selected_date
+            self.selected_date,
+            country_name=country_name
         )
 
         if success:
@@ -635,6 +639,13 @@ class MawaquitApp:
         """Efface toutes les courbes isochrones"""
         self.isochrone_gen.clear_isochrones()
         if self.current_gdf is not None:
+            # Restaurer le titre par défaut
+            pays = self.pays_var.get()
+            if pays:
+                self.ax.set_title(
+                    f"Carte de {pays} - Cliquez pour placer le marqueur",
+                    fontsize=12, fontweight='bold'
+                )
             self.canvas.draw()
 
 
