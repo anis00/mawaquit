@@ -22,7 +22,7 @@ import warnings
 
 # Import des modules personnalisés
 from praytimes import PrayTimes
-from isochrones import IsochroneGeneratorDirect
+from isochrones import IsochroneGeneratorBands
 
 warnings.filterwarnings('ignore')
 
@@ -48,6 +48,34 @@ class MawaquitApp:
             "Turkey": "TUR", "Indonesia": "IDN", "Pakistan": "PAK", "India": "IND"
         }
 
+        # Fuseaux horaires standards par pays (sans heure d'été)
+        # Pour les grands pays avec plusieurs fuseaux, on utilise le fuseau principal
+        self.pays_timezones = {
+            # Europe
+            "France": 1, "Germany": 1, "Italy": 1, "Spain": 1,
+            "United Kingdom": 0, "Belgium": 1, "Netherlands": 1,
+            "Switzerland": 1, "Portugal": 0, "Poland": 1,
+            "Greece": 2, "Austria": 1, "Sweden": 1, "Norway": 1,
+            "Denmark": 1,
+            # Afrique du Nord
+            "Morocco": 1, "Tunisia": 1, "Algeria": 1, "Egypt": 2,
+            # Afrique
+            "South Africa": 2,
+            # Amérique (fuseau principal / capitale)
+            "United States": -5,  # EST (Washington DC)
+            "Canada": -5,         # EST (Ottawa)
+            "Mexico": -6,         # CST (Mexico City)
+            "Brazil": -3,         # BRT (Brasilia)
+            "Argentina": -3,      # ART (Buenos Aires)
+            # Moyen-Orient
+            "Saudi Arabia": 3, "UAE": 4, "Qatar": 3, "Kuwait": 3,
+            "Turkey": 3,
+            # Asie
+            "Indonesia": 7,       # WIB (Jakarta)
+            "Pakistan": 5,
+            "India": 5,           # IST (+5:30 arrondi)
+        }
+
         # Calculateur de prières
         self.pray_calc = PrayTimes('MWL')
 
@@ -61,6 +89,8 @@ class MawaquitApp:
         self.selected_date = date.today()
         self.initial_bounds = None
         self.max_zoom_factor = 20
+        self.current_timezone = 0  # Fuseau horaire du pays actuellement sélectionné
+        self.current_country_name = None  # Nom du pays actuellement sélectionné
 
         # Cache GADM
         self.cache_dir = os.path.join(tempfile.gettempdir(), "gadm_cache")
@@ -70,7 +100,7 @@ class MawaquitApp:
         self.setup_ui()
 
         # Générateur d'isochrones (initialisé après l'UI)
-        self.isochrone_gen = IsochroneGeneratorDirect(self.pray_calc, self.ax)
+        self.isochrone_gen = IsochroneGeneratorBands(self.pray_calc, self.ax)
 
     def setup_ui(self):
         """Configure l'interface utilisateur"""
@@ -390,6 +420,10 @@ class MawaquitApp:
         self.current_gdf = niveau0
         self.initial_bounds = niveau0.total_bounds
 
+        # Mettre à jour le fuseau horaire du pays
+        self.current_country_name = pays
+        self.current_timezone = self.pays_timezones.get(pays, round(niveau0.total_bounds[0] / 15))
+
         niveau0.plot(ax=self.ax, color='lightblue', alpha=0.3,
                      edgecolor='navy', linewidth=2)
 
@@ -581,7 +615,8 @@ class MawaquitApp:
         lat, lon = self.marker_pos
         self.coord_label.config(text=f"Position: {lat:.4f}°N, {lon:.4f}°E")
 
-        tz = round(lon / 15)
+        # Utiliser le fuseau horaire du pays (fixe) au lieu de round(lon / 15)
+        tz = self.current_timezone
 
         method = self.method_var.get()
         if self.pray_calc.calcMethod != method:
@@ -620,7 +655,8 @@ class MawaquitApp:
             prayer_name,
             self.current_gdf,
             self.selected_date,
-            country_name=country_name
+            country_name=country_name,
+            country_timezone=self.current_timezone
         )
 
         if success:

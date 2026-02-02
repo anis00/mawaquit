@@ -143,7 +143,7 @@
 <h1>Note de Calcul Mathématique<br>Heures de Prière et Courbes Isochrones</h1>
 
 <p><strong>Document technique pour le projet Mawaquit</strong></p>
-<p><em>Version 2.0 - Janvier 2025</em></p>
+<p><em>Version 2.1 - Février 2025</em></p>
 
 <div class="toc">
     <h3>Table des matières</h3>
@@ -542,9 +542,33 @@
     </tr>
 </table>
 
-<h3 id="section4-3">4.3 Gestion multi-fuseaux horaires</h3>
+<h3 id="section4-3">4.3 Gestion des fuseaux horaires</h3>
 
-<p>Pour les pays qui s'étendent sur plusieurs fuseaux horaires (USA, Russie, Canada...), il faut calculer les isochrones pour chaque fuseau séparément.</p>
+<h4>4.3.1 Fuseau horaire fixe par pays</h4>
+
+<p>Pour éviter les discontinuités dans le calcul des heures de prière, un <strong>fuseau horaire fixe</strong> est utilisé pour chaque pays.</p>
+
+<div class="important">
+    <p><strong>Problème résolu</strong> : L'ancienne approche \(TZ = \text{round}(\lambda/15)\) causait des sauts d'une heure aux longitudes frontières (±7.5°, ±22.5°, ±37.5°, etc.).</p>
+    <p>Par exemple, en France (TZ=1), un point à λ=7.4° donnait TZ=0, tandis qu'un point à λ=7.6° donnait TZ=1, causant une discontinuité d'1 heure.</p>
+</div>
+
+<div class="formula-box">
+    <p><strong>Solution</strong> : Utiliser un fuseau horaire unique \(TZ_{pays}\) pour tout le pays :</p>
+    \[\lambda = 15 \times (12 - EqT + TZ_{pays} - T_{cible}) \pm H\]
+    <p>Le fuseau \(TZ_{pays}\) est défini dans un dictionnaire par pays :</p>
+    <ul>
+        <li>France : TZ = 1 (CET)</li>
+        <li>Tunisie : TZ = 1</li>
+        <li>Maroc : TZ = 0 (WET) ou 1</li>
+        <li>Arabie Saoudite : TZ = 3</li>
+        <li>etc.</li>
+    </ul>
+</div>
+
+<h4>4.3.2 Pays multi-fuseaux horaires</h4>
+
+<p>Pour les pays qui s'étendent sur plusieurs fuseaux horaires (USA, Russie, Canada...), on trace les isochrones pour chaque fuseau séparément.</p>
 
 <div class="formula-box">
     <p><strong>Algorithme</strong> :</p>
@@ -557,6 +581,10 @@
         <li style="margin-left: 40px;">Si valide, ajouter le point au segment de ce fuseau</li>
         <li>Tracer chaque segment séparément (évite les croisements)</li>
     </ol>
+</div>
+
+<div class="warning">
+    <p><strong>Note</strong> : Pour les pays à fuseau unique mais avec un fuseau "atypique" (ex: Chine entière sur TZ=8 malgré sa largeur), le fuseau fixe \(TZ_{pays}\) est utilisé pour assurer la cohérence avec les horaires officiels du pays.</p>
 </div>
 
 <h2 id="section5">5. Exemples numériques</h2>
@@ -734,9 +762,9 @@ def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
         <td>± 1-3 minutes</td>
     </tr>
     <tr>
-        <td>Fuseau horaire simplifié</td>
-        <td>TZ = round(λ/15) vs TZ réel</td>
-        <td>± 30 minutes max</td>
+        <td><s>Fuseau horaire simplifié</s></td>
+        <td><s>TZ = round(λ/15) vs TZ réel</s></td>
+        <td><s>± 30 minutes max</s> → <strong>RÉSOLU (v2.1)</strong></td>
     </tr>
     <tr>
         <td>Précision numérique</td>
@@ -815,7 +843,7 @@ def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
 
 <hr>
 <p style="text-align: center; color: #666;">
-    <em>Document généré pour le projet Mawaquit - Version 2.0 - Janvier 2025</em>
+    <em>Document généré pour le projet Mawaquit - Version 2.1 - Février 2025</em>
 </p>
 
 </body>

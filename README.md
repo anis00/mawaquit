@@ -146,6 +146,7 @@ mawaquit/
 ├── note_calcul_isochrones.html   # Documentation mathématique détaillée
 ├── populated_places.geojson      # Données des villes (optionnel)
 ├── README.md                     # Cette documentation
+├── CLAUDE.md                     # Contexte projet pour reprise avec Claude
 │
 └── /tmp/gadm_cache/              # Cache automatique (créé à l'exécution)
     ├── gadm41_FRA_0.json
@@ -162,7 +163,8 @@ mawaquit/
 | `praytimes.py` | Classe PrayTimes avec algorithmes astronomiques | ~390 lignes |
 | `isochrones.py` | Générateur de courbes isochrones (3 approches : grille, exact, **analytique**) | ~550 lignes |
 | `inverse_isochrone.py` | Calcul inverse φ=f(λ) - obsolète, remplacé par approche λ=f(φ) | ~400 lignes |
-| `note_calcul_isochrones.html` | Note de calcul mathématique détaillée (v2.0) | ~50 KB |
+| `note_calcul_isochrones.html` | Note de calcul mathématique détaillée (v2.1) | ~50 KB |
+| `CLAUDE.md` | Contexte projet pour reprise avec Claude AI | ~3 KB |
 | `populated_places.geojson` | Base de données villes Natural Earth | ~50 MB |
 
 ---
@@ -515,7 +517,13 @@ L'ancienne approche par grille nécessitait 10 000 calculs. La nouvelle approche
 
 **Pays concernés** : Groenland, nord Scandinavie, Antarctique
 
-### 4. Absence de gestion DST (Priorité : Moyenne)
+### 4. ~~Sauts de fuseau horaire~~ (RÉSOLU v2.1)
+
+**Statut** : Résolu avec l'utilisation d'un fuseau horaire fixe par pays
+
+L'ancienne approche `TZ = round(lon / 15)` causait des sauts d'une heure aux longitudes frontières (±7.5°, ±22.5°, etc.). Maintenant, chaque pays utilise son fuseau horaire officiel défini dans un dictionnaire.
+
+### 5. Absence de gestion DST (Priorité : Moyenne)
 
 **Description** : L'heure d'été (Daylight Saving Time) n'est pas détectée automatiquement.
 
@@ -523,7 +531,7 @@ L'ancienne approche par grille nécessitait 10 000 calculs. La nouvelle approche
 
 **Solution temporaire** : L'utilisateur doit manuellement ajuster
 
-### 5. Cache non nettoyé (Priorité : Faible)
+### 6. Cache non nettoyé (Priorité : Faible)
 
 **Description** : Les fichiers GADM restent indéfiniment dans `/tmp/gadm_cache/`
 
@@ -531,7 +539,7 @@ L'ancienne approche par grille nécessitait 10 000 calculs. La nouvelle approche
 
 **Risque** : Remplissage du disque à très long terme
 
-### 6. Affichage dense des villes (Priorité : Moyenne)
+### 7. Affichage dense des villes (Priorité : Moyenne)
 
 **Description** : Pour les grands pays, afficher toutes les villes peut surcharger la carte.
 
@@ -752,5 +760,5 @@ SOFTWARE.
 
 ---
 
-**Dernière mise à jour** : Janvier 2025
-**Version** : 2.0.0
+**Dernière mise à jour** : Février 2025
+**Version** : 2.1.0
