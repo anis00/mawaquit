@@ -1,0 +1,267 @@
+/**
+ * Mawaquit - Custom CSS Styles
+ * Complements Tailwind CSS
+ */
+
+/* Map Container */
+#map {
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Custom Marker */
+.marker-icon {
+    background: transparent;
+}
+
+.marker-cross {
+    width: 20px;
+    height: 20px;
+    position: relative;
+}
+
+.marker-cross::before,
+.marker-cross::after {
+    content: '';
+    position: absolute;
+    background-color: #dc2626;
+    border-radius: 1px;
+}
+
+.marker-cross::before {
+    width: 3px;
+    height: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.marker-cross::after {
+    width: 20px;
+    height: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Isochrone Labels */
+.isochrone-label {
+    background: transparent;
+    border: none;
+}
+
+.isochrone-time {
+    background: white;
+    border: 2px solid #1a237e;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #1a237e;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Loading Spinner */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #1976D2;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Sidebar Scrollbar */
+aside::-webkit-scrollbar {
+    width: 6px;
+}
+
+aside::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+aside::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+aside::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* Button States */
+.iso-btn {
+    transition: all 0.2s ease;
+}
+
+.iso-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.iso-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.iso-btn:disabled {
+    cursor: not-allowed;
+}
+
+/* Form Elements */
+select:focus,
+input:focus {
+    outline: none;
+}
+
+/* Prayer Times List */
+#prayer-times > div {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+#prayer-times > div:last-child {
+    border-bottom: none;
+}
+
+/* Status Bar Transitions */
+#status-bar {
+    transition: background-color 0.3s ease;
+}
+
+/* Leaflet Customization */
+.leaflet-control-zoom {
+    border: none !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.leaflet-control-zoom a {
+    color: #333 !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    /* Stack sidebar on top on mobile */
+    main {
+        flex-direction: column !important;
+    }
+
+    aside {
+        width: 100% !important;
+        max-height: 40vh;
+        order: 1;
+    }
+
+    .flex-1.relative {
+        order: 2;
+        min-height: 50vh;
+    }
+
+    /* Smaller buttons on mobile */
+    .iso-btn {
+        padding: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    /* Compact prayer times */
+    #prayer-times > div {
+        padding: 0.25rem 0;
+    }
+
+    /* Hide instructions on mobile */
+    aside section:last-child {
+        display: none;
+    }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+    header h1 {
+        font-size: 1rem;
+    }
+
+    aside {
+        max-height: 35vh;
+    }
+
+    .flex-1.relative {
+        min-height: 55vh;
+    }
+}
+
+/* Print Styles */
+@media print {
+    aside {
+        display: none;
+    }
+
+    header, footer {
+        display: none;
+    }
+
+    #map {
+        width: 100%;
+        height: 100vh;
+    }
+}
+
+/* Animation for loading states */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Focus visible for accessibility */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+    outline: 2px solid #1976D2;
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .iso-btn {
+        border: 2px solid currentColor;
+    }
+
+    .isochrone-time {
+        border-width: 3px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .spinner {
+        animation: none;
+        border-top-color: #1976D2;
+        border-right-color: #1976D2;
+    }
+
+    .iso-btn {
+        transition: none;
+    }
+
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
