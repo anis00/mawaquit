@@ -97,6 +97,11 @@ class MawaquitApp {
 
             this.state.countryData = data;
 
+            // Check if country data was loaded successfully
+            if (!data[0]) {
+                throw new Error('Failed to load country boundaries. Please try again.');
+            }
+
             // Display on map
             mapManager.loadCountry(data[0], data[1]);
 

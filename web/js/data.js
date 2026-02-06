@@ -8,6 +8,8 @@ class DataManager {
         this.cache = new Map();
         this.countriesData = null;
         this.gadmBaseUrl = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json';
+        // CORS proxy for cross-origin requests
+        this.corsProxy = 'https://api.allorigins.win/raw?url=';
     }
 
     /**
@@ -52,6 +54,15 @@ class DataManager {
      * @returns {string} URL
      */
     buildGadmUrl(countryCode, level) {
+        const directUrl = `${this.gadmBaseUrl}/gadm41_${countryCode}_${level}.json`;
+        // Use CORS proxy to bypass cross-origin restrictions
+        return `${this.corsProxy}${directUrl}`;
+    }
+
+    /**
+     * Build direct GADM URL without proxy (for testing)
+     */
+    buildDirectGadmUrl(countryCode, level) {
         return `${this.gadmBaseUrl}/gadm41_${countryCode}_${level}.json`;
     }
 
