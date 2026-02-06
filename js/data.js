@@ -7,9 +7,8 @@ class DataManager {
         // In-memory cache for GeoJSON data
         this.cache = new Map();
         this.countriesData = null;
-        this.gadmBaseUrl = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json';
-        // CORS proxy for cross-origin requests
-        this.corsProxy = 'https://api.allorigins.win/raw?url=';
+        // Local GADM data path (simplified and hosted locally)
+        this.gadmLocalPath = 'data/gadm';
     }
 
     /**
@@ -48,22 +47,13 @@ class DataManager {
     }
 
     /**
-     * Build GADM URL for a country and level
+     * Build local GADM URL for a country and level
      * @param {string} countryCode - ISO 3-letter country code
-     * @param {number} level - Administrative level (0, 1, or 2)
+     * @param {number} level - Administrative level (0 or 1)
      * @returns {string} URL
      */
     buildGadmUrl(countryCode, level) {
-        const directUrl = `${this.gadmBaseUrl}/gadm41_${countryCode}_${level}.json`;
-        // Use CORS proxy to bypass cross-origin restrictions
-        return `${this.corsProxy}${directUrl}`;
-    }
-
-    /**
-     * Build direct GADM URL without proxy (for testing)
-     */
-    buildDirectGadmUrl(countryCode, level) {
-        return `${this.gadmBaseUrl}/gadm41_${countryCode}_${level}.json`;
+        return `${this.gadmLocalPath}/${countryCode}_${level}.json`;
     }
 
     /**
@@ -79,7 +69,7 @@ class DataManager {
     /**
      * Load GADM GeoJSON data for a country
      * @param {string} countryCode - ISO 3-letter country code
-     * @param {number} level - Administrative level (0, 1, or 2)
+     * @param {number} level - Administrative level (0 or 1)
      * @param {Function} onProgress - Progress callback
      * @returns {Promise<Object>} GeoJSON data
      */
