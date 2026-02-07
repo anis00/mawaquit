@@ -4,74 +4,127 @@ Ce fichier contient les informations essentielles pour reprendre le travail sur 
 
 ## Description du projet
 
-**Mawaquit** est une application Python de calcul des heures de prière islamiques avec :
-- Visualisation cartographique interactive (Tkinter + Matplotlib + GeoPandas)
-- Courbes isochrones montrant les zones de même heure de prière
-- Support de 40+ pays avec données GADM
+**Mawaquit** est une application de calcul des heures de prière islamiques avec visualisation cartographique et courbes isochrones. Le projet existe en deux versions :
 
-## Structure des fichiers
+1. **Version Desktop** (Python/Tkinter) - Application native
+2. **Version Web** (HTML/JS/Leaflet) - Application web statique
 
-| Fichier | Description |
-|---------|-------------|
-| `mawaquit_main.py` | Application principale (UI Tkinter, carte, interactions) |
-| `praytimes.py` | Calcul des heures de prière (algorithmes astronomiques) |
-| `isochrones.py` | Génération des courbes isochrones (3 classes disponibles) |
-| `inverse_isochrone.py` | Ancien module de calcul inverse (obsolète) |
-| `note_calcul_isochrones.html` | Documentation mathématique détaillée |
-| `README.md` | Documentation utilisateur |
+## Structure du projet
 
-## Classes principales dans isochrones.py
+```
+mawaquit/
+├── mawaquit_main.py       # Application desktop (Tkinter)
+├── praytimes.py           # Calcul heures de prière (Python)
+├── isochrones.py          # Génération isochrones (Python)
+├── requirements.txt       # Dépendances Python
+├── scripts/
+│   └── download_gadm.py   # Script téléchargement données GADM
+└── web/                   # Version web
+    ├── index.html
+    ├── css/custom.css
+    ├── js/
+    │   ├── app.js             # Orchestration
+    │   ├── praytimes.js       # Port de praytimes.py
+    │   ├── isochrones.js      # Interface isochrones
+    │   ├── isochrones.worker.js  # Web Worker calculs
+    │   ├── map.js             # Gestion Leaflet
+    │   ├── ui.js              # Interface utilisateur
+    │   ├── data.js            # Chargement données
+    │   └── utils.js           # Utilitaires
+    └── data/
+        ├── countries.json     # Métadonnées 33 pays
+        └── gadm/              # Données géographiques simplifiées (16 MB)
+```
 
-1. **IsochroneGenerator** : Approche par grille (ancienne, lente)
-2. **IsochroneGeneratorDirect** : Approche analytique lon=f(lat) - **RECOMMANDÉE**
-3. **IsochroneGeneratorBands** : Bandes colorées au lieu de lignes
+## Version Web
+
+### URL de production
+https://anis00.github.io/mawaquit/
+
+### Technologies utilisées
+- **Leaflet.js** - Carte interactive
+- **Tailwind CSS** - Styles (via CDN)
+- **Web Workers** - Calculs isochrones non-bloquants
+- **Données GADM** - Frontières simplifiées (hébergées localement)
+
+### Fonctionnalités
+- 33 pays avec données géographiques pré-chargées
+- 7 méthodes de calcul (MWL, ISNA, Egypt, Makkah, Karachi, Tehran, Jafari)
+- Isochrones avec 2 nuances de bleu alternées
+- Étiquettes toujours visibles
+
+### Déploiement GitHub Pages
+```bash
+git subtree push --prefix web origin gh-pages
+```
+
+## Version Desktop (Python)
+
+### Installation
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+pip install -r requirements.txt
+python mawaquit_main.py
+```
+
+### Dépendances
+- geopandas >= 1.0.0
+- matplotlib >= 3.8.0
+- numpy >= 2.0.0
+- shapely >= 2.0.0
+- tkinter (standard library)
 
 ## Formules clés
 
-### Calcul direct (position -> heure)
+### Calcul direct (position → heure)
 ```
 T = T_noon ± (1/15) × arccos[(-sin(α) - sin(δ) × sin(φ)) / (cos(δ) × cos(φ))]
 ```
 
-### Calcul inverse (heure -> longitude) - Approche actuelle
+### Calcul inverse (heure → longitude)
 ```
 λ = 15 × (12 - EqT + TZ_pays - T_cible) ± H
 ```
 Où H = angle horaire calculé pour la latitude φ
 
+## Classes isochrones (Python)
+
+1. **IsochroneGenerator** : Approche par grille (ancienne, lente)
+2. **IsochroneGeneratorDirect** : Approche analytique lon=f(lat)
+3. **IsochroneGeneratorBands** : Bandes colorées - **UTILISÉE**
+
 ## Historique des versions
 
+### v3.0.0 (Février 2025)
+- **Version Web** : Migration vers HTML/JS/Leaflet
+- Données GADM simplifiées et hébergées localement (16 MB)
+- Chargement instantané sans proxy CORS
+- Isochrones avec couleurs alternées
+
 ### v2.1.0 (Février 2025)
-- **Fuseau horaire fixe par pays** : Résolution du problème de saut d'1h aux longitudes frontières (±7.5°, ±22.5°, etc.)
-- Dictionnaire `pays_timezones` dans `mawaquit_main.py`
-- Paramètre `country_timezone` passé à `tracer_isochrones()`
+- Fuseau horaire fixe par pays
+- Dictionnaire `pays_timezones`
 
 ### v2.0.0 (Janvier 2025)
-- Nouvelle approche analytique `lon = f(lat)` au lieu de `lat = f(lon)`
+- Approche analytique `lon = f(lat)`
 - Bandes colorées avec `IsochroneGeneratorBands`
-- Correction de la précision (±1-2 minutes corrigées par itération sur JD)
-- Gestion des pays multi-fuseaux (segments séparés)
+- Précision ±1-2 minutes
 
-## Variables d'état importantes (mawaquit_main.py)
+## Tests à effectuer
 
-```python
-self.current_timezone      # Fuseau horaire du pays actuel
-self.current_country_name  # Nom du pays actuel
-self.current_gdf           # GeoDataFrame de la carte
-self.selected_date         # Date sélectionnée
-self.pray_calc             # Instance de PrayTimes
-self.isochrone_gen         # Instance de IsochroneGeneratorBands
-```
+### Version Web
+1. Ouvrir https://anis00.github.io/mawaquit/
+2. Sélectionner un pays (France, Tunisie, USA)
+3. Cliquer sur la carte → heures de prière affichées
+4. Cliquer sur un bouton isochrone → bandes colorées
+5. Vérifier que les étiquettes restent visibles
 
-## Dictionnaire des fuseaux horaires
-
-Le dictionnaire `pays_timezones` dans `mawaquit_main.py` contient :
-- France: 1 (CET)
-- Tunisia: 1
-- Morocco: 0 ou 1
-- Saudi Arabia: 3
-- USA: varie (-5 à -10, multi-fuseaux)
-- etc.
+### Version Desktop
+1. `python mawaquit_main.py`
+2. Charger différents pays
+3. Tracer les isochrones pour chaque prière
+4. Vérifier la correspondance heure affichée / bande
 
 ## Points d'attention
 
@@ -80,38 +133,17 @@ Le dictionnaire `pays_timezones` dans `mawaquit_main.py` contient :
 3. **Hautes latitudes** (> 60°) : Comportement non garanti
 4. **DST** : Non géré automatiquement
 
-## Dépendances
-
-```
-geopandas
-matplotlib
-numpy
-tkinter (standard library)
-```
-
-## Commande de lancement
-
-```bash
-python mawaquit_main.py
-```
-
-## Tests à effectuer après modifications
-
-1. Charger différents pays (France, Tunisie, USA)
-2. Tracer les isochrones pour chaque prière
-3. Cliquer sur la carte et vérifier que l'heure affichée correspond à la bande
-4. Tester aux longitudes frontières (7.5°, 22.5°) pour vérifier l'absence de saut
-
 ## Problèmes résolus
 
 - [x] Calcul trop lent → Approche analytique
-- [x] Courbes incorrectes croisées → Segments par fuseau
 - [x] Précision ±2 minutes → Itération sur JD
-- [x] Sauts d'1h aux frontières de TZ → Fuseau fixe par pays
+- [x] Sauts d'1h aux frontières TZ → Fuseau fixe par pays
+- [x] CORS avec GADM → Données locales simplifiées
+- [x] Chargement lent web → Fichiers GeoJSON optimisés
 
 ## Améliorations potentielles
 
-- [ ] Gestion DST automatique (pytz/timezonefinder)
-- [ ] Support altitudes (ajustement angle horizon)
-- [ ] Multithreading pour les calculs
+- [ ] Gestion DST automatique
+- [ ] Support altitudes
 - [ ] Export PDF calendrier mensuel
+- [ ] PWA (Progressive Web App)
