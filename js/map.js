@@ -10,10 +10,14 @@ class MapManager {
         this.level1Layer = null;
         this.level2Layer = null;
         this.isochroneLayers = [];
+        this.isochroneLabels = [];  // Separate array for labels
         this.marker = null;
         this.bounds = null;
         this.maxZoom = 12;
         this.minZoom = 2;
+
+        // Isochrone colors - two alternating shades of blue
+        this.isochroneColors = ['#90CAF9', '#1E88E5'];  // Light blue, Dark blue
 
         this.onMapClick = null;
     }
@@ -179,23 +183,19 @@ class MapManager {
         // Clear existing isochrones
         this.clearIsochrones();
 
-        const colors = [
-            '#E3F2FD', '#BBDEFB', '#90CAF9', '#64B5F6', '#42A5F5',
-            '#2196F3', '#1E88E5', '#1976D2', '#1565C0', '#0D47A1'
-        ];
-
         bands.forEach((band, index) => {
             if (band.polygon && band.polygon.length >= 3) {
                 // Convert [lon, lat] to [lat, lon] for Leaflet
                 const latLngs = band.polygon.map(p => [p[1], p[0]]);
 
-                const color = colors[index % colors.length];
+                // Alternate between two blue colors
+                const color = this.isochroneColors[index % 2];
 
                 const polygon = L.polygon(latLngs, {
-                    color: '#6a1b9a',
-                    weight: 0.5,
+                    color: '#1565C0',      // Border color (darker blue)
+                    weight: 1,
                     fillColor: color,
-                    fillOpacity: 0.6
+                    fillOpacity: 0.5
                 }).addTo(this.map);
 
                 this.isochroneLayers.push(polygon);
@@ -208,10 +208,11 @@ class MapManager {
                             html: `<div class="isochrone-time">${band.label}</div>`,
                             iconSize: [60, 24],
                             iconAnchor: [30, 12]
-                        })
-                    }).addTo(this.map);
+                        }),
+                        interactive: false  // Don't interfere with map clicks
+                    }).addTo(this.map);  // Add directly to map
 
-                    this.isochroneLayers.push(labelMarker);
+                    this.isochroneLabels.push(labelMarker);
                 }
             }
         });
@@ -221,10 +222,17 @@ class MapManager {
      * Clear all isochrone layers
      */
     clearIsochrones() {
+        // Remove polygon layers
         this.isochroneLayers.forEach(layer => {
             this.map.removeLayer(layer);
         });
         this.isochroneLayers = [];
+
+        // Remove label markers
+        this.isochroneLabels.forEach(marker => {
+            this.map.removeLayer(marker);
+        });
+        this.isochroneLabels = [];
     }
 
     /**
