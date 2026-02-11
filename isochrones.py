@@ -100,6 +100,7 @@ class IsochroneGenerator:
                 fmt=lambda x: self._format_time_label(x)
             )
             for label in clabels:
+                label.set_clip_on(True)  # Activer le clipping aux limites des axes
                 x, y = label.get_position()
                 if not (min_lon <= x <= max_lon and min_lat <= y <= max_lat):
                     label.set_visible(False)
@@ -227,7 +228,8 @@ class IsochroneGeneratorDirect(IsochroneGenerator):
                         text = self.ax.text(label_x, label_y, self._format_time_label(target_minutes),
                                           fontsize=8, ha='center', va='center',
                                           bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
-                                                   edgecolor='none', alpha=0.7))
+                                                   edgecolor='none', alpha=0.7),
+                                          clip_on=True)  # Activer le clipping aux limites des axes
                         self.isochrone_lines.append(text)
 
         self._update_title()
@@ -363,12 +365,14 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
             '#E3F2FD', '#BBDEFB', '#90CAF9', '#64B5F6', '#42A5F5',
             '#2196F3', '#1E88E5', '#1976D2', '#1565C0', '#0D47A1'
         ]
+        self.band_data = []
 
     def tracer_isochrones(self, prayer_name, gdf, selected_date, country_name=None, country_timezone=None):
         if gdf is None:
             return False
 
         self.clear_isochrones()
+        self.band_data = []
         self.current_prayer = prayer_name
         self.current_country = country_name
 
@@ -457,6 +461,7 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
         poly_lats = [p[1] for p in polygon_points]
 
         color = self.colors[color_idx % len(self.colors)]
+        self.band_data.append((color, minute))
         fill = self.ax.fill(poly_lons, poly_lats, facecolor=color,
                            edgecolor='purple', linewidth=0.5, alpha=0.6)
         self.isochrone_lines.extend(fill)
@@ -473,5 +478,14 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
                                fontsize=9, fontweight='bold', ha='center', va='center',
                                color='#1a237e',
                                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
-                                        edgecolor='#1a237e', alpha=0.85))
+                                        edgecolor='#1a237e', alpha=0.85),
+                               clip_on=True)  # Activer le clipping aux limites des axes
             self.isochrone_lines.append(text)
+
+    def get_legend_data(self):
+        """Retourne les données des bandes pour construire une légende (color, minute)"""
+        return self.band_data
+
+    def has_isochrones(self):
+        """Vérifie si des isochrones sont actuellement affichées"""
+        return len(self.isochrone_lines) > 0

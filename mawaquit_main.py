@@ -12,11 +12,15 @@ Version modulaire avec :
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import os
 import tempfile
+import math
 from datetime import date, timedelta
 import warnings
 
@@ -91,6 +95,7 @@ class MawaquitApp:
         self.max_zoom_factor = 20
         self.current_timezone = 0  # Fuseau horaire du pays actuellement sélectionné
         self.current_country_name = None  # Nom du pays actuellement sélectionné
+        self._updating_limits = False  # Flag pour éviter la récursion dans on_limits_changed
 
         # Cache GADM
         self.cache_dir = os.path.join(tempfile.gettempdir(), "gadm_cache")
@@ -190,9 +195,14 @@ class MawaquitApp:
 
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         self.toolbar.update()
+        self.toolbar.save_figure = self.export_carte
 
         self.canvas.mpl_connect('button_press_event', self.on_map_click)
         self.canvas.mpl_connect('scroll_event', self.on_scroll)
+
+        # Connecter les événements de changement de limites pour contraindre la navigation
+        self.ax.callbacks.connect('xlim_changed', self.on_limits_changed)
+        self.ax.callbacks.connect('ylim_changed', self.on_limits_changed)
 
         # === Frame droit ===
         right_frame = ttk.Frame(main_frame, width=300)
@@ -247,6 +257,9 @@ class MawaquitApp:
         ttk.Separator(iso_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
         ttk.Button(iso_frame, text="Effacer Courbes",
                    command=self.clear_isochrones).pack(fill=tk.X, pady=2)
+        self.export_btn = ttk.Button(iso_frame, text="Exporter Carte",
+                                     command=self.export_carte, state=tk.DISABLED)
+        self.export_btn.pack(fill=tk.X, pady=2)
 
         # Panel instructions
         info_frame = ttk.LabelFrame(right_frame, text="Instructions", padding=10)
@@ -515,7 +528,8 @@ class MawaquitApp:
                     ha='left', va='bottom', zorder=6,
                     bbox=dict(boxstyle='round,pad=0.3',
                               facecolor='white', alpha=0.7,
-                              edgecolor='none')
+                              edgecolor='none'),
+                    clip_on=True  # Activer le clipping aux limites des axes
                 )
                 self.cities_artists.append(text)
 
@@ -556,6 +570,63 @@ class MawaquitApp:
 
             self.ax.set_xlim(center_x - new_width / 2, center_x + new_width / 2)
             self.ax.set_ylim(center_y - new_height / 2, center_y + new_height / 2)
+
+    def constrain_view_to_bounds(self):
+        """Contraint la vue aux limites du pays (empêche la navigation hors zone)"""
+        if self.initial_bounds is None:
+            return False
+
+        min_lon, min_lat, max_lon, max_lat = self.initial_bounds
+        cur_xlim = list(self.ax.get_xlim())
+        cur_ylim = list(self.ax.get_ylim())
+
+        view_width = cur_xlim[1] - cur_xlim[0]
+        view_height = cur_ylim[1] - cur_ylim[0]
+        bounds_width = max_lon - min_lon
+        bounds_height = max_lat - min_lat
+
+        changed = False
+
+        # Si la vue est plus large que les bounds, centrer sur les bounds
+        if view_width >= bounds_width:
+            center = (min_lon + max_lon) / 2
+            cur_xlim = [center - view_width / 2, center + view_width / 2]
+            changed = True
+        else:
+            # Contraindre la vue à rester dans les limites
+            if cur_xlim[0] < min_lon:
+                cur_xlim = [min_lon, min_lon + view_width]
+                changed = True
+            elif cur_xlim[1] > max_lon:
+                cur_xlim = [max_lon - view_width, max_lon]
+                changed = True
+
+        if view_height >= bounds_height:
+            center = (min_lat + max_lat) / 2
+            cur_ylim = [center - view_height / 2, center + view_height / 2]
+            changed = True
+        else:
+            if cur_ylim[0] < min_lat:
+                cur_ylim = [min_lat, min_lat + view_height]
+                changed = True
+            elif cur_ylim[1] > max_lat:
+                cur_ylim = [max_lat - view_height, max_lat]
+                changed = True
+
+        if changed:
+            # Désactiver temporairement le callback pour éviter la récursion
+            self._updating_limits = True
+            self.ax.set_xlim(cur_xlim)
+            self.ax.set_ylim(cur_ylim)
+            self._updating_limits = False
+
+        return changed
+
+    def on_limits_changed(self, ax):
+        """Callback appelé quand les limites de l'axe changent (zoom/pan toolbar)"""
+        if getattr(self, '_updating_limits', False):
+            return
+        self.constrain_view_to_bounds()
 
     def on_map_click(self, event):
         """Gère le clic sur la carte"""
@@ -602,8 +673,9 @@ class MawaquitApp:
         self.ax.set_xlim([xdata - new_width * (1 - relx), xdata + new_width * relx])
         self.ax.set_ylim([ydata - new_height * (1 - rely), ydata + new_height * rely])
 
-        # Appliquer la limitation du zoom
+        # Appliquer la limitation du zoom et contraindre à la zone
         self.limit_zoom()
+        self.constrain_view_to_bounds()
 
         self.canvas.draw_idle()
 
@@ -621,6 +693,8 @@ class MawaquitApp:
         method = self.method_var.get()
         if self.pray_calc.calcMethod != method:
             self.pray_calc = PrayTimes(method)
+            # Mettre à jour aussi le générateur d'isochrones
+            self.isochrone_gen.pray_calc = self.pray_calc
 
         times = self.pray_calc.getTimes(
             self.selected_date,
@@ -661,6 +735,7 @@ class MawaquitApp:
 
         if success:
             self.canvas.draw()
+            self.export_btn.config(state=tk.NORMAL)
             self.status_label.config(
                 text=f"Isochrones tracées pour {prayer_name}",
                 foreground="green"
@@ -671,9 +746,95 @@ class MawaquitApp:
                 foreground="red"
             )
 
+    def export_carte(self, *args):
+        """Exporte la carte avec échelle en haute qualité (polices réduites pour l'export)"""
+        if not self.isochrone_gen.has_isochrones():
+            messagebox.showinfo("Export", "Aucune isochrone à exporter.\n"
+                                "Tracez d'abord les isochrones pour une prière.")
+            return
+
+        # Dialogue de sauvegarde
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=[("PNG", "*.png"), ("PDF", "*.pdf"), ("SVG", "*.svg")],
+            title="Exporter la carte"
+        )
+        if not path:
+            return
+
+        temp_artists = []
+        saved_fontsizes = []
+
+        try:
+            # --- Réduire temporairement les polices pour l'export ---
+            for item in self.isochrone_gen.isochrone_lines:
+                if hasattr(item, 'get_fontsize'):
+                    saved_fontsizes.append((item, item.get_fontsize()))
+                    item.set_fontsize(item.get_fontsize() * 0.5)
+            # Titre
+            title_obj = self.ax.title
+            saved_fontsizes.append((title_obj, title_obj.get_fontsize()))
+            title_obj.set_fontsize(title_obj.get_fontsize() * 0.6)
+            # Labels axes
+            for label_obj in [self.ax.xaxis.label, self.ax.yaxis.label]:
+                saved_fontsizes.append((label_obj, label_obj.get_fontsize()))
+                label_obj.set_fontsize(label_obj.get_fontsize() * 0.6)
+            # Tick labels
+            for tick in self.ax.get_xticklabels() + self.ax.get_yticklabels():
+                saved_fontsizes.append((tick, tick.get_fontsize()))
+                tick.set_fontsize(tick.get_fontsize() * 0.6)
+
+            # --- Échelle graphique ---
+            if self.initial_bounds is not None:
+                min_lon, min_lat, max_lon, max_lat = self.initial_bounds
+                center_lat = (min_lat + max_lat) / 2
+                km_per_deg = 111.32 * math.cos(math.radians(center_lat))
+                map_width_km = (max_lon - min_lon) * km_per_deg
+
+                target_km = map_width_km * 0.2
+                nice_values = [10, 20, 50, 100, 200, 500, 1000, 2000]
+                scale_km = min(nice_values, key=lambda x: abs(x - target_km))
+                scale_deg = scale_km / km_per_deg
+
+                fontprops = fm.FontProperties(size=5)
+                scalebar = AnchoredSizeBar(
+                    self.ax.transData, scale_deg, f"{scale_km} km",
+                    loc='lower right', pad=0.5, borderpad=0.5,
+                    sep=3, frameon=True, fontproperties=fontprops,
+                    size_vertical=0.002 * (max_lat - min_lat),
+                    color='black', fill_bar=True
+                )
+                self.ax.add_artist(scalebar)
+                temp_artists.append(scalebar)
+
+            # --- Sauvegarde haute qualité ---
+            self.fig.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+
+            self.status_label.config(
+                text=f"Carte exportée : {os.path.basename(path)}",
+                foreground="green"
+            )
+            messagebox.showinfo("Export", f"Carte exportée avec succès :\n{path}")
+
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'export :\n{e}")
+
+        finally:
+            # Restaurer les polices originales
+            for text_obj, original_size in saved_fontsizes:
+                text_obj.set_fontsize(original_size)
+            # Supprimer les éléments temporaires
+            for artist in temp_artists:
+                try:
+                    artist.remove()
+                except Exception:
+                    pass
+            self.canvas.draw()
+
     def clear_isochrones(self):
         """Efface toutes les courbes isochrones"""
         self.isochrone_gen.clear_isochrones()
+        self.export_btn.config(state=tk.DISABLED)
         if self.current_gdf is not None:
             # Restaurer le titre par défaut
             pays = self.pays_var.get()
