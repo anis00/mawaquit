@@ -12,15 +12,11 @@ Version modulaire avec :
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-import matplotlib.font_manager as fm
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
 import tempfile
-import math
 from datetime import date, timedelta
 import warnings
 
@@ -87,6 +83,7 @@ class MawaquitApp:
         self.marker_pos = None
         self.marker_artist = None
         self.current_gdf = None
+        self.current_gdf_level1 = None
         self.current_gdf_level2 = None
         self.cities_gdf = None
         self.cities_artists = []
@@ -195,7 +192,7 @@ class MawaquitApp:
 
         self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
         self.toolbar.update()
-        self.toolbar.save_figure = self.export_carte
+        self.toolbar.save_figure = self.show_export_dialog
 
         self.canvas.mpl_connect('button_press_event', self.on_map_click)
         self.canvas.mpl_connect('scroll_event', self.on_scroll)
@@ -258,7 +255,7 @@ class MawaquitApp:
         ttk.Button(iso_frame, text="Effacer Courbes",
                    command=self.clear_isochrones).pack(fill=tk.X, pady=2)
         self.export_btn = ttk.Button(iso_frame, text="Exporter Carte",
-                                     command=self.export_carte, state=tk.DISABLED)
+                                     command=self.show_export_dialog, state=tk.DISABLED)
         self.export_btn.pack(fill=tk.X, pady=2)
 
         # Panel instructions
@@ -424,7 +421,7 @@ class MawaquitApp:
         self.clear_cities()
 
         niveau0 = self.telecharger_gadm(code_pays, 0)
-        niveau1 = self.telecharger_gadm(code_pays, 1)
+        self.current_gdf_level1 = self.telecharger_gadm(code_pays, 1)
 
         if niveau0 is None:
             self.status_label.config(text="Erreur chargement", foreground="red")
@@ -440,9 +437,9 @@ class MawaquitApp:
         niveau0.plot(ax=self.ax, color='lightblue', alpha=0.3,
                      edgecolor='navy', linewidth=2)
 
-        if niveau1 is not None:
-            niveau1.boundary.plot(ax=self.ax, edgecolor='darkred',
-                                  linewidth=0.8, alpha=0.6)
+        if self.current_gdf_level1 is not None:
+            self.current_gdf_level1.boundary.plot(ax=self.ax, edgecolor='darkred',
+                                                   linewidth=0.8, alpha=0.6)
 
         self.current_gdf_level2 = self.telecharger_gadm(code_pays, 2)
         self.cities_gdf = self.charger_villes(code_pays)
@@ -465,6 +462,7 @@ class MawaquitApp:
         self.ax.grid(True, alpha=0.2)
 
         self.canvas.draw()
+        self.export_btn.config(state=tk.NORMAL)
         self.status_label.config(
             text=f"Carte chargée. Cliquez pour calculer les heures de prière",
             foreground="green"
@@ -746,95 +744,213 @@ class MawaquitApp:
                 foreground="red"
             )
 
-    def export_carte(self, *args):
-        """Exporte la carte avec échelle en haute qualité (polices réduites pour l'export)"""
-        if not self.isochrone_gen.has_isochrones():
-            messagebox.showinfo("Export", "Aucune isochrone à exporter.\n"
-                                "Tracez d'abord les isochrones pour une prière.")
+    def show_export_dialog(self, *args):
+        """Affiche le dialogue de choix de format d'export"""
+        if self.current_gdf is None:
+            messagebox.showinfo("Export", "Chargez d'abord un pays.")
             return
 
-        # Dialogue de sauvegarde
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Exporter les données cartographiques")
+        dialog.geometry("400x420")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # --- Format ---
+        format_frame = ttk.LabelFrame(dialog, text="Format d'export", padding=10)
+        format_frame.pack(fill=tk.X, padx=15, pady=(15, 5))
+
+        format_var = tk.StringVar(value="gpkg")
+        formats = [
+            ("GeoPackage (.gpkg) — toutes les couches + 5 prières", "gpkg"),
+            ("Shapefile (.shp) — couches au choix", "shp"),
+            ("GeoJSON (.geojson) — couches au choix", "geojson"),
+        ]
+        for text, val in formats:
+            ttk.Radiobutton(format_frame, text=text, variable=format_var,
+                            value=val, command=lambda: toggle_layers()).pack(anchor=tk.W, pady=2)
+
+        # --- Couches (pour Shapefile / GeoJSON) ---
+        layers_frame = ttk.LabelFrame(dialog, text="Couches à exporter", padding=10)
+        layers_frame.pack(fill=tk.X, padx=15, pady=5)
+
+        # Isochrones : seulement la prière affichée
+        current_prayer = self.isochrone_gen.current_prayer
+        has_iso = self.isochrone_gen.has_isochrones() and current_prayer
+        iso_label = (f"Isochrones ({current_prayer})" if has_iso
+                     else "Isochrones (aucune prière affichée)")
+
+        layer_vars = {}
+        layer_defs = [
+            ("niveau0", "Frontières (niveau 0)", self.current_gdf),
+            ("niveau1", "Provinces (niveau 1)", self.current_gdf_level1),
+            ("niveau2", "Sous-divisions (niveau 2)", self.current_gdf_level2),
+            ("villes", "Villes", self.cities_gdf),
+            ("isochrones", iso_label, has_iso),
+        ]
+
+        layer_checks = []
+        for key, label, data in layer_defs:
+            available = data is not None and data is not False
+            var = tk.BooleanVar(value=available)
+            layer_vars[key] = var
+            state = tk.NORMAL if available else tk.DISABLED
+            if not available:
+                var.set(False)
+            cb = ttk.Checkbutton(layers_frame, text=label, variable=var, state=state)
+            cb.pack(anchor=tk.W, pady=1)
+            layer_checks.append(cb)
+
+        def toggle_layers():
+            is_gpkg = format_var.get() == "gpkg"
+            for cb in layer_checks:
+                cb.config(state=tk.DISABLED if is_gpkg else tk.NORMAL)
+            if not is_gpkg:
+                for (key, label, data), cb in zip(layer_defs, layer_checks):
+                    if data is None or data is False:
+                        cb.config(state=tk.DISABLED)
+
+        # Initial state: GPKG selected, layers disabled
+        toggle_layers()
+
+        # --- Boutons ---
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill=tk.X, padx=15, pady=15)
+
+        def on_ok():
+            fmt = format_var.get()
+            dialog.destroy()
+            if fmt == "gpkg":
+                self._export_gpkg()
+            elif fmt == "shp":
+                selected = {k for k, v in layer_vars.items() if v.get()}
+                self._export_files(selected, "ESRI Shapefile", ".shp")
+            elif fmt == "geojson":
+                selected = {k for k, v in layer_vars.items() if v.get()}
+                self._export_files(selected, "GeoJSON", ".geojson")
+
+        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="Annuler", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+
+    def _export_gpkg(self):
+        """Exporte toutes les couches + isochrones des 5 prières en GeoPackage"""
+        pays = self.pays_var.get() or "export"
+        date_str = self.selected_date.strftime('%Y-%m-%d')
+
         path = filedialog.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG", "*.png"), ("PDF", "*.pdf"), ("SVG", "*.svg")],
-            title="Exporter la carte"
+            defaultextension=".gpkg",
+            filetypes=[("GeoPackage", "*.gpkg")],
+            initialfile=f"{pays}_{date_str}.gpkg",
+            title="Exporter en GeoPackage"
         )
         if not path:
             return
 
-        temp_artists = []
-        saved_fontsizes = []
-
         try:
-            # --- Réduire temporairement les polices pour l'export ---
-            for item in self.isochrone_gen.isochrone_lines:
-                if hasattr(item, 'get_fontsize'):
-                    saved_fontsizes.append((item, item.get_fontsize()))
-                    item.set_fontsize(item.get_fontsize() * 0.5)
-            # Titre
-            title_obj = self.ax.title
-            saved_fontsizes.append((title_obj, title_obj.get_fontsize()))
-            title_obj.set_fontsize(title_obj.get_fontsize() * 0.6)
-            # Labels axes
-            for label_obj in [self.ax.xaxis.label, self.ax.yaxis.label]:
-                saved_fontsizes.append((label_obj, label_obj.get_fontsize()))
-                label_obj.set_fontsize(label_obj.get_fontsize() * 0.6)
-            # Tick labels
-            for tick in self.ax.get_xticklabels() + self.ax.get_yticklabels():
-                saved_fontsizes.append((tick, tick.get_fontsize()))
-                tick.set_fontsize(tick.get_fontsize() * 0.6)
+            if self.current_gdf is not None:
+                self.current_gdf.to_file(path, driver='GPKG',
+                                         layer=f'{pays}_{date_str}_niveau0')
+            if self.current_gdf_level1 is not None:
+                self.current_gdf_level1.to_file(path, driver='GPKG',
+                                                layer=f'{pays}_{date_str}_niveau1')
+            if self.current_gdf_level2 is not None:
+                self.current_gdf_level2.to_file(path, driver='GPKG',
+                                                layer=f'{pays}_{date_str}_niveau2')
+            if self.cities_gdf is not None:
+                self.cities_gdf.to_file(path, driver='GPKG',
+                                        layer=f'{pays}_{date_str}_villes')
 
-            # --- Échelle graphique ---
-            if self.initial_bounds is not None:
-                min_lon, min_lat, max_lon, max_lat = self.initial_bounds
-                center_lat = (min_lat + max_lat) / 2
-                km_per_deg = 111.32 * math.cos(math.radians(center_lat))
-                map_width_km = (max_lon - min_lon) * km_per_deg
-
-                target_km = map_width_km * 0.2
-                nice_values = [10, 20, 50, 100, 200, 500, 1000, 2000]
-                scale_km = min(nice_values, key=lambda x: abs(x - target_km))
-                scale_deg = scale_km / km_per_deg
-
-                fontprops = fm.FontProperties(size=5)
-                scalebar = AnchoredSizeBar(
-                    self.ax.transData, scale_deg, f"{scale_km} km",
-                    loc='lower right', pad=0.5, borderpad=0.5,
-                    sep=3, frameon=True, fontproperties=fontprops,
-                    size_vertical=0.002 * (max_lat - min_lat),
-                    color='black', fill_bar=True
+            # Calcul des isochrones : une couche par prière
+            prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
+            for idx, prayer in enumerate(prayers):
+                self.status_label.config(
+                    text=f"Calcul isochrones {prayer} ({idx+1}/{len(prayers)})...",
+                    foreground="orange"
                 )
-                self.ax.add_artist(scalebar)
-                temp_artists.append(scalebar)
+                self.root.update()
 
-            # --- Sauvegarde haute qualité ---
-            self.fig.savefig(path, dpi=300, bbox_inches='tight', facecolor='white')
+                polys = self.isochrone_gen.compute_band_polygons(
+                    prayer, self.current_gdf, self.selected_date,
+                    self.current_timezone
+                )
+                if polys:
+                    iso_gdf = gpd.GeoDataFrame(
+                        polys, geometry='geometry', crs='EPSG:4326'
+                    )
+                    iso_gdf.to_file(path, driver='GPKG',
+                                    layer=f'{pays}_{date_str}_isochrones_{prayer}')
 
             self.status_label.config(
-                text=f"Carte exportée : {os.path.basename(path)}",
+                text=f"GeoPackage exporté : {os.path.basename(path)}",
                 foreground="green"
             )
-            messagebox.showinfo("Export", f"Carte exportée avec succès :\n{path}")
-
+            messagebox.showinfo("Export", f"GeoPackage exporté :\n{path}\n\n"
+                                "Ouvrez ce fichier dans QGIS.")
         except Exception as e:
             messagebox.showerror("Erreur", f"Erreur lors de l'export :\n{e}")
 
-        finally:
-            # Restaurer les polices originales
-            for text_obj, original_size in saved_fontsizes:
-                text_obj.set_fontsize(original_size)
-            # Supprimer les éléments temporaires
-            for artist in temp_artists:
-                try:
-                    artist.remove()
-                except Exception:
-                    pass
-            self.canvas.draw()
+    def _export_files(self, selected_layers, driver, extension):
+        """Exporte les couches sélectionnées en fichiers séparés dans un dossier"""
+        if not selected_layers:
+            messagebox.showinfo("Export", "Aucune couche sélectionnée.")
+            return
+
+        folder = filedialog.askdirectory(title="Choisir le dossier de destination")
+        if not folder:
+            return
+
+        pays = self.pays_var.get() or "export"
+        date_str = self.selected_date.strftime('%Y-%m-%d')
+
+        try:
+            exported = []
+
+            if "niveau0" in selected_layers and self.current_gdf is not None:
+                p = os.path.join(folder, f"{pays}_{date_str}_niveau0{extension}")
+                self.current_gdf.to_file(p, driver=driver)
+                exported.append(os.path.basename(p))
+
+            if "niveau1" in selected_layers and self.current_gdf_level1 is not None:
+                p = os.path.join(folder, f"{pays}_{date_str}_niveau1{extension}")
+                self.current_gdf_level1.to_file(p, driver=driver)
+                exported.append(os.path.basename(p))
+
+            if "niveau2" in selected_layers and self.current_gdf_level2 is not None:
+                p = os.path.join(folder, f"{pays}_{date_str}_niveau2{extension}")
+                self.current_gdf_level2.to_file(p, driver=driver)
+                exported.append(os.path.basename(p))
+
+            if "villes" in selected_layers and self.cities_gdf is not None:
+                p = os.path.join(folder, f"{pays}_{date_str}_villes{extension}")
+                self.cities_gdf.to_file(p, driver=driver)
+                exported.append(os.path.basename(p))
+
+            if "isochrones" in selected_layers:
+                # Exporter uniquement la prière actuellement affichée
+                current_prayer = self.isochrone_gen.current_prayer
+                band_polygons = self.isochrone_gen.get_band_polygons()
+                if band_polygons and current_prayer:
+                    iso_gdf = gpd.GeoDataFrame(
+                        band_polygons, geometry='geometry', crs='EPSG:4326'
+                    )
+                    p = os.path.join(folder,
+                                     f"{pays}_{date_str}_isochrones_{current_prayer}{extension}")
+                    iso_gdf.to_file(p, driver=driver)
+                    exported.append(os.path.basename(p))
+
+            self.status_label.config(
+                text=f"{len(exported)} fichier(s) exporté(s)",
+                foreground="green"
+            )
+            messagebox.showinfo("Export",
+                                f"Fichiers exportés dans :\n{folder}\n\n" +
+                                "\n".join(exported))
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de l'export :\n{e}")
 
     def clear_isochrones(self):
         """Efface toutes les courbes isochrones"""
         self.isochrone_gen.clear_isochrones()
-        self.export_btn.config(state=tk.DISABLED)
         if self.current_gdf is not None:
             # Restaurer le titre par défaut
             pays = self.pays_var.get()

@@ -366,6 +366,8 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
             '#2196F3', '#1E88E5', '#1976D2', '#1565C0', '#0D47A1'
         ]
         self.band_data = []
+        self.band_polygons = []
+        self.current_date = None
 
     def tracer_isochrones(self, prayer_name, gdf, selected_date, country_name=None, country_timezone=None):
         if gdf is None:
@@ -373,8 +375,10 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         self.clear_isochrones()
         self.band_data = []
+        self.band_polygons = []
         self.current_prayer = prayer_name
         self.current_country = country_name
+        self.current_date = selected_date
 
         bounds = gdf.total_bounds
         min_lon, min_lat, max_lon, max_lat = bounds
@@ -462,6 +466,16 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         color = self.colors[color_idx % len(self.colors)]
         self.band_data.append((color, minute))
+
+        from shapely.geometry import Polygon
+        self.band_polygons.append({
+            'geometry': Polygon([(lon, lat) for lon, lat in polygon_points]),
+            'minute': minute,
+            'time': self._format_time_label(minute),
+            'color': color,
+            'prayer': self.current_prayer,
+            'date': str(self.current_date),
+        })
         fill = self.ax.fill(poly_lons, poly_lats, facecolor=color,
                            edgecolor='purple', linewidth=0.5, alpha=0.6)
         self.isochrone_lines.extend(fill)
@@ -482,9 +496,140 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
                                clip_on=True)  # Activer le clipping aux limites des axes
             self.isochrone_lines.append(text)
 
+    def compute_band_polygons(self, prayer_name, gdf, selected_date, country_timezone=None):
+        """
+        Calcule les polygones isochrones pour UNE prière, sans rendu matplotlib.
+
+        Args:
+            prayer_name (str): Nom de la prière ('fajr', 'dhuhr', etc.)
+            gdf: GeoDataFrame du pays
+            selected_date: Date pour le calcul
+            country_timezone (int): Fuseau horaire fixe du pays
+
+        Returns:
+            list[dict]: Liste de dicts avec clés geometry, minute, time, color, prayer, date
+                        Retourne une liste vide en cas d'échec.
+        """
+        if gdf is None:
+            return []
+
+        bounds = gdf.total_bounds
+        min_lon, min_lat, max_lon, max_lat = bounds
+
+        if country_timezone is not None:
+            tz_fixed = country_timezone
+        else:
+            tz_fixed = round((min_lon + max_lon) / 2 / 15)
+
+        if type(selected_date).__name__ == 'date':
+            date_tuple = (selected_date.year, selected_date.month, selected_date.day)
+        else:
+            date_tuple = selected_date
+
+        jd = self._julian(date_tuple[0], date_tuple[1], date_tuple[2])
+        decl, eqt = self._sun_position(jd)
+
+        prayer_params = self._get_prayer_params(prayer_name)
+        if prayer_params is None:
+            return []
+
+        angle, direction, is_asr, asr_factor = prayer_params
+
+        sample_times = []
+        for lat in np.linspace(min_lat, max_lat, 10):
+            for lon in np.linspace(min_lon, max_lon, 10):
+                times = self.pray_calc.getTimes(selected_date, (lat, lon, 0), tz_fixed, format='Float')
+                if prayer_name in times:
+                    t = times[prayer_name]
+                    if not math.isnan(t):
+                        sample_times.append(t * 60)
+
+        if not sample_times:
+            return []
+
+        min_time = min(sample_times) - 2
+        max_time = max(sample_times) + 2
+        minutes_list = list(range(int(np.floor(min_time)), int(np.ceil(max_time)) + 1))
+
+        if len(minutes_list) < 2:
+            return []
+
+        lats = np.linspace(min_lat, max_lat, self.num_lat_points)
+        from shapely.geometry import Polygon
+
+        polygons = []
+        for idx, target_minute in enumerate(minutes_list):
+            time_low = (target_minute - 0.5) / 60.0
+            time_high = (target_minute + 0.5) / 60.0
+
+            curve_low = []
+            curve_high = []
+
+            for lat in lats:
+                lon_low = self._compute_longitude(
+                    lat, time_low, decl, eqt, tz_fixed,
+                    angle, direction, is_asr, asr_factor, jd_base=jd
+                )
+                if lon_low is not None and min_lon <= lon_low <= max_lon:
+                    curve_low.append((lon_low, lat))
+
+                lon_high = self._compute_longitude(
+                    lat, time_high, decl, eqt, tz_fixed,
+                    angle, direction, is_asr, asr_factor, jd_base=jd
+                )
+                if lon_high is not None and min_lon <= lon_high <= max_lon:
+                    curve_high.append((lon_high, lat))
+
+            if len(curve_low) >= 2 and len(curve_high) >= 2:
+                polygon_points = list(curve_low) + list(reversed(curve_high))
+                if len(polygon_points) >= 3:
+                    polygon_points.append(polygon_points[0])
+                    color = self.colors[idx % len(self.colors)]
+                    polygons.append({
+                        'geometry': Polygon(polygon_points),
+                        'minute': target_minute,
+                        'time': self._format_time_label(target_minute),
+                        'color': color,
+                        'prayer': prayer_name,
+                        'date': str(selected_date),
+                    })
+
+        return polygons
+
+    def compute_all_prayers_polygons(self, gdf, selected_date, country_timezone=None, progress_callback=None):
+        """
+        Calcule les polygones isochrones pour les 5 prières.
+
+        Args:
+            gdf: GeoDataFrame du pays
+            selected_date: Date pour le calcul
+            country_timezone (int): Fuseau horaire fixe du pays
+            progress_callback: Fonction(prayer, idx, total) appelée entre chaque prière
+
+        Returns:
+            list[dict]: Liste combinée de tous les polygones des 5 prières
+        """
+        prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
+        all_polygons = []
+
+        for idx, prayer in enumerate(prayers):
+            if progress_callback:
+                progress_callback(prayer, idx, len(prayers))
+            polys = self.compute_band_polygons(prayer, gdf, selected_date, country_timezone)
+            all_polygons.extend(polys)
+
+        if progress_callback:
+            progress_callback(None, len(prayers), len(prayers))
+
+        return all_polygons
+
     def get_legend_data(self):
         """Retourne les données des bandes pour construire une légende (color, minute)"""
         return self.band_data
+
+    def get_band_polygons(self):
+        """Retourne les polygones Shapely des bandes pour l'export GeoPackage"""
+        return self.band_polygons
 
     def has_isochrones(self):
         """Vérifie si des isochrones sont actuellement affichées"""
