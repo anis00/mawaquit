@@ -383,6 +383,9 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
         bounds = gdf.total_bounds
         min_lon, min_lat, max_lon, max_lat = bounds
 
+        # Géométrie du pays pour le clipping
+        country_shape = gdf.geometry.unary_union
+
         # Fuseau horaire fixe du pays
         if country_timezone is not None:
             tz_fixed = country_timezone
@@ -449,39 +452,65 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
             if len(curve_low) >= 2 and len(curve_high) >= 2:
                 self._draw_band(curve_low, curve_high, idx, target_minute,
-                               min_lon, max_lon, min_lat, max_lat)
+                               min_lon, max_lon, min_lat, max_lat, country_shape)
 
         self._update_title()
         return True
 
     def _draw_band(self, curve_low, curve_high, color_idx, minute,
-                   min_lon, max_lon, min_lat, max_lat):
+                   min_lon, max_lon, min_lat, max_lat, country_shape=None):
+        from shapely.geometry import Polygon, MultiPolygon
+
         polygon_points = list(curve_low) + list(reversed(curve_high))
         if len(polygon_points) < 3:
             return
 
         polygon_points.append(polygon_points[0])
-        poly_lons = [p[0] for p in polygon_points]
-        poly_lats = [p[1] for p in polygon_points]
 
         color = self.colors[color_idx % len(self.colors)]
         self.band_data.append((color, minute))
 
-        from shapely.geometry import Polygon
+        band_poly = Polygon(polygon_points)
+        if not band_poly.is_valid:
+            band_poly = band_poly.buffer(0)
+
+        # Intersection avec la frontière du pays
+        if country_shape is not None:
+            clipped = band_poly.intersection(country_shape)
+        else:
+            clipped = band_poly
+
+        if clipped.is_empty:
+            return
+
+        # Stocker le polygone clippé pour l'export
         self.band_polygons.append({
-            'geometry': Polygon([(lon, lat) for lon, lat in polygon_points]),
+            'geometry': clipped,
             'minute': minute,
             'time': self._format_time_label(minute),
             'color': color,
             'prayer': self.current_prayer,
             'date': str(self.current_date),
         })
-        fill = self.ax.fill(poly_lons, poly_lats, facecolor=color,
-                           edgecolor='purple', linewidth=0.5, alpha=0.6)
-        self.isochrone_lines.extend(fill)
 
-        center_lon = np.mean([p[0] for p in curve_low + curve_high])
-        center_lat = np.mean([p[1] for p in curve_low + curve_high])
+        # Collecter les polygones à dessiner (Polygon ou MultiPolygon)
+        if isinstance(clipped, MultiPolygon):
+            polys = list(clipped.geoms)
+        elif isinstance(clipped, Polygon):
+            polys = [clipped]
+        else:
+            # GeometryCollection : extraire les polygones
+            polys = [g for g in clipped.geoms if isinstance(g, Polygon)]
+
+        for poly in polys:
+            xs, ys = poly.exterior.coords.xy
+            fill = self.ax.fill(list(xs), list(ys), facecolor=color,
+                               edgecolor='purple', linewidth=0.5, alpha=0.6)
+            self.isochrone_lines.extend(fill)
+
+        # Étiquette au centroïde du polygone clippé
+        centroid = clipped.centroid
+        center_lon, center_lat = centroid.x, centroid.y
 
         margin_lon = 0.05 * (max_lon - min_lon)
         margin_lat = 0.05 * (max_lat - min_lat)
@@ -493,12 +522,13 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
                                color='#1a237e',
                                bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
                                         edgecolor='#1a237e', alpha=0.85),
-                               clip_on=True)  # Activer le clipping aux limites des axes
+                               clip_on=True)
             self.isochrone_lines.append(text)
 
     def compute_band_polygons(self, prayer_name, gdf, selected_date, country_timezone=None):
         """
         Calcule les polygones isochrones pour UNE prière, sans rendu matplotlib.
+        Les polygones sont clippés par la frontière du pays.
 
         Args:
             prayer_name (str): Nom de la prière ('fajr', 'dhuhr', etc.)
@@ -515,6 +545,9 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         bounds = gdf.total_bounds
         min_lon, min_lat, max_lon, max_lat = bounds
+
+        # Géométrie du pays pour le clipping
+        country_shape = gdf.geometry.unary_union
 
         if country_timezone is not None:
             tz_fixed = country_timezone
@@ -584,9 +617,15 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
                 polygon_points = list(curve_low) + list(reversed(curve_high))
                 if len(polygon_points) >= 3:
                     polygon_points.append(polygon_points[0])
+                    band_poly = Polygon(polygon_points)
+                    if not band_poly.is_valid:
+                        band_poly = band_poly.buffer(0)
+                    clipped = band_poly.intersection(country_shape)
+                    if clipped.is_empty:
+                        continue
                     color = self.colors[idx % len(self.colors)]
                     polygons.append({
-                        'geometry': Polygon(polygon_points),
+                        'geometry': clipped,
                         'minute': target_minute,
                         'time': self._format_time_label(target_minute),
                         'color': color,
