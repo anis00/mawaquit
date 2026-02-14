@@ -177,43 +177,47 @@ class MapManager {
 
     /**
      * Draw isochrone bands on the map
-     * @param {Array} bands - Array of band objects with polygons and labels
+     * @param {Array} bands - Array of band objects with geometry (GeoJSON) or polygon (array)
      */
     drawIsochrones(bands) {
         // Clear existing isochrones
         this.clearIsochrones();
 
         bands.forEach((band, index) => {
-            if (band.polygon && band.polygon.length >= 3) {
-                // Convert [lon, lat] to [lat, lon] for Leaflet
+            // Alternate between two blue colors
+            const color = this.isochroneColors[index % 2];
+            const style = {
+                color: '#1565C0',
+                weight: 1,
+                fillColor: color,
+                fillOpacity: 0.5
+            };
+
+            if (band.geometry) {
+                // GeoJSON geometry (Polygon or MultiPolygon) from clipping
+                const feature = { type: 'Feature', geometry: band.geometry, properties: {} };
+                const layer = L.geoJSON(feature, { style: () => style }).addTo(this.map);
+                this.isochroneLayers.push(layer);
+            } else if (band.polygon && band.polygon.length >= 3) {
+                // Legacy: raw coordinate array [lon, lat]
                 const latLngs = band.polygon.map(p => [p[1], p[0]]);
+                const polygon = L.polygon(latLngs, style).addTo(this.map);
+                this.isochroneLayers.push(polygon);
+            }
 
-                // Alternate between two blue colors
-                const color = this.isochroneColors[index % 2];
-
-                const polygon = L.polygon(latLngs, {
-                    color: '#1565C0',      // Border color (darker blue)
-                    weight: 1,
-                    fillColor: color,
-                    fillOpacity: 0.5
+            // Add label at center if available
+            if (band.label && band.labelPos) {
+                const labelMarker = L.marker([band.labelPos[1], band.labelPos[0]], {
+                    icon: L.divIcon({
+                        className: 'isochrone-label',
+                        html: `<div class="isochrone-time">${band.label}</div>`,
+                        iconSize: [60, 24],
+                        iconAnchor: [30, 12]
+                    }),
+                    interactive: false
                 }).addTo(this.map);
 
-                this.isochroneLayers.push(polygon);
-
-                // Add label at center if available
-                if (band.label && band.labelPos) {
-                    const labelMarker = L.marker([band.labelPos[1], band.labelPos[0]], {
-                        icon: L.divIcon({
-                            className: 'isochrone-label',
-                            html: `<div class="isochrone-time">${band.label}</div>`,
-                            iconSize: [60, 24],
-                            iconAnchor: [30, 12]
-                        }),
-                        interactive: false  // Don't interfere with map clicks
-                    }).addTo(this.map);  // Add directly to map
-
-                    this.isochroneLabels.push(labelMarker);
-                }
+                this.isochroneLabels.push(labelMarker);
             }
         });
     }

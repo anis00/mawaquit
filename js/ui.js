@@ -14,7 +14,16 @@ class UIManager {
             statusBar: document.getElementById('status-bar'),
             loadingOverlay: document.getElementById('loading-overlay'),
             loadingText: document.getElementById('loading-text'),
-            clearIsochrones: document.getElementById('clear-isochrones')
+            clearIsochrones: document.getElementById('clear-isochrones'),
+            exportBtn: document.getElementById('export-btn'),
+            exportModal: document.getElementById('export-modal'),
+            exportBorders: document.getElementById('export-borders'),
+            exportProvinces: document.getElementById('export-provinces'),
+            exportIsochrones: document.getElementById('export-isochrones'),
+            exportIsoLabel: document.getElementById('export-iso-label'),
+            exportIsoText: document.getElementById('export-iso-text'),
+            exportCancel: document.getElementById('export-cancel'),
+            exportDownload: document.getElementById('export-download')
         };
 
         // Prayer time elements
@@ -43,6 +52,7 @@ class UIManager {
         this.onLevel2Toggle = null;
         this.onIsochroneRequest = null;
         this.onClearIsochrones = null;
+        this.onExportRequest = null;
 
         this.setupEventListeners();
         this.initDate();
@@ -93,6 +103,36 @@ class UIManager {
         this.elements.clearIsochrones.addEventListener('click', () => {
             if (this.onClearIsochrones) {
                 this.onClearIsochrones();
+            }
+        });
+
+        // Export button
+        this.elements.exportBtn.addEventListener('click', () => {
+            this.showExportModal();
+        });
+
+        // Export cancel
+        this.elements.exportCancel.addEventListener('click', () => {
+            this.hideExportModal();
+        });
+
+        // Export download
+        this.elements.exportDownload.addEventListener('click', () => {
+            const layers = {
+                borders: this.elements.exportBorders.checked,
+                provinces: this.elements.exportProvinces.checked,
+                isochrones: this.elements.exportIsochrones.checked && !this.elements.exportIsochrones.disabled
+            };
+            this.hideExportModal();
+            if (this.onExportRequest) {
+                this.onExportRequest(layers);
+            }
+        });
+
+        // Close modal on backdrop click
+        this.elements.exportModal.addEventListener('click', (e) => {
+            if (e.target === this.elements.exportModal) {
+                this.hideExportModal();
             }
         });
     }
@@ -273,6 +313,51 @@ class UIManager {
                 button.classList.add('bg-blue-100', 'text-blue-800');
             }
         }
+    }
+
+    /**
+     * Enable/disable export button
+     * @param {boolean} enabled
+     */
+    setExportEnabled(enabled) {
+        this.elements.exportBtn.disabled = !enabled;
+        if (enabled) {
+            this.elements.exportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            this.elements.exportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    /**
+     * Update the isochrone export option based on current prayer
+     * @param {string|null} prayer - Prayer name or null if none
+     */
+    updateExportIsoOption(prayer) {
+        if (prayer) {
+            this.elements.exportIsochrones.disabled = false;
+            this.elements.exportIsochrones.checked = true;
+            this.elements.exportIsoLabel.classList.remove('opacity-50');
+            this.elements.exportIsoText.textContent = `Isochrones (${prayer.charAt(0).toUpperCase() + prayer.slice(1)})`;
+        } else {
+            this.elements.exportIsochrones.disabled = true;
+            this.elements.exportIsochrones.checked = false;
+            this.elements.exportIsoLabel.classList.add('opacity-50');
+            this.elements.exportIsoText.textContent = 'Isochrones (no prayer selected)';
+        }
+    }
+
+    /**
+     * Show export modal
+     */
+    showExportModal() {
+        this.elements.exportModal.classList.remove('hidden');
+    }
+
+    /**
+     * Hide export modal
+     */
+    hideExportModal() {
+        this.elements.exportModal.classList.add('hidden');
     }
 }
 

@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note de Calcul - Heures de Prière et Isochrones</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2980b9;
+            margin-top: 40px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #27ae60;
+            margin-top: 30px;
+        }
+        h4 {
+            color: #8e44ad;
+            margin-top: 25px;
+        }
+        .formula-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .important {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .example {
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-left: 4px solid #28a745;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning {
+            background: #f8d7da;
+            border: 1px solid #dc3545;
+            border-left: 4px solid #dc3545;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d1ecf1;
+            border: 1px solid #17a2b8;
+            border-left: 4px solid #17a2b8;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', monospace;
+        }
+        pre {
+            background: #2d3436;
+            color: #dfe6e9;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .toc {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 20px;
+        }
+        .toc > ul {
+            padding-left: 0;
+        }
+        .toc a {
+            color: #2980b9;
+            text-decoration: none;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+        .prayer-section {
+            background: #f0f7ff;
+            border: 1px solid #b8daff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .prayer-section h4 {
+            margin-top: 0;
+            color: #004085;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Note de Calcul Mathématique<br>Heures de Prière et Courbes Isochrones</h1>
+
+<p><strong>Document technique pour le projet Mawaquit</strong></p>
+<p><em>Version 3.2 - Février 2026</em></p>
+
+<div class="toc">
+    <h3>Table des matières</h3>
+    <ul>
+        <li><a href="#section1">1. Introduction</a></li>
+        <li><a href="#section2">2. Paramètres astronomiques</a></li>
+        <li><a href="#section3">3. Calcul direct des heures de prière</a>
+            <ul>
+                <li><a href="#section3-1">3.1 Formule générale</a></li>
+                <li><a href="#section3-2">3.2 Fajr (الفجر)</a></li>
+                <li><a href="#section3-3">3.3 Sunrise (الشروق)</a></li>
+                <li><a href="#section3-4">3.4 Dhuhr (الظهر)</a></li>
+                <li><a href="#section3-5">3.5 Asr (العصر)</a></li>
+                <li><a href="#section3-6">3.6 Maghrib (المغرب)</a></li>
+                <li><a href="#section3-7">3.7 Isha (العشاء)</a></li>
+            </ul>
+        </li>
+        <li><a href="#section4">4. Calcul inverse pour les isochrones</a>
+            <ul>
+                <li><a href="#section4-1">4.1 Approche lon = f(lat)</a></li>
+                <li><a href="#section4-2">4.2 Formules inverses par prière</a></li>
+                <li><a href="#section4-3">4.3 Gestion multi-fuseaux horaires</a></li>
+            </ul>
+        </li>
+        <li><a href="#section5">5. Exemples numériques</a></li>
+        <li><a href="#section6">6. Implémentation Python</a></li>
+        <li><a href="#section6bis">6bis. Clipping des bandes isochrones par les frontières</a></li>
+        <li><a href="#section7">7. Analyse de précision</a></li>
+        <li><a href="#section8">8. Conclusion</a></li>
+    </ul>
+</div>
+
+<h2 id="section1">1. Introduction</h2>
+
+<p>Ce document présente les formules mathématiques utilisées dans le projet Mawaquit pour :</p>
+<ol>
+    <li><strong>Le calcul direct</strong> : Déterminer l'heure d'une prière pour une position géographique donnée (latitude φ, longitude λ)</li>
+    <li><strong>Le calcul inverse</strong> : Déterminer la longitude λ où une prière a lieu à une heure donnée, pour une latitude φ fixée (génération des courbes isochrones)</li>
+</ol>
+
+<div class="success">
+    <p><strong>Nouvelle approche (v2.0)</strong> : Le calcul inverse utilise maintenant la formule <strong>λ = f(φ)</strong> au lieu de φ = f(λ). Cette approche est :</p>
+    <ul>
+        <li>Plus directe (calcul analytique sans itération)</li>
+        <li>Plus stable (une seule solution par latitude)</li>
+        <li>Plus rapide (pas de bisection nécessaire)</li>
+    </ul>
+</div>
+
+<h2 id="section2">2. Paramètres astronomiques</h2>
+
+<h3>2.1 Jour Julien</h3>
+
+<p>Le jour julien \(JD\) est calculé à partir de la date (année \(Y\), mois \(M\), jour \(D\)) :</p>
+
+<div class="formula-box">
+    <p>Si \(M \leq 2\) : \(Y \leftarrow Y-1\), \(M \leftarrow M+12\)</p>
+    \[A = \lfloor Y/100 \rfloor\]
+    \[B = 2 - A + \lfloor A/4 \rfloor\]
+    \[JD = \lfloor 365.25(Y+4716) \rfloor + \lfloor 30.6001(M+1) \rfloor + D + B - 1524.5\]
+</div>
+
+<h3>2.2 Position du Soleil</h3>
+
+<p>À partir du jour julien, on calcule les paramètres solaires :</p>
+
+<div class="formula-box">
+    \[D = JD - 2451545.0\]
+    \[g = 357.529° + 0.98560028° \times D \pmod{360°}\]
+    \[q = 280.459° + 0.98564736° \times D \pmod{360°}\]
+    \[L = q + 1.915° \sin(g) + 0.020° \sin(2g) \pmod{360°}\]
+    \[e = 23.439° - 0.00000036° \times D\]
+</div>
+
+<p>Où :</p>
+<ul>
+    <li>\(g\) = anomalie moyenne du Soleil</li>
+    <li>\(q\) = longitude moyenne du Soleil</li>
+    <li>\(L\) = longitude écliptique du Soleil</li>
+    <li>\(e\) = obliquité de l'écliptique (inclinaison de l'axe terrestre)</li>
+</ul>
+
+<h3>2.3 Déclinaison solaire</h3>
+
+<p>La déclinaison \(\delta\) est l'angle entre le Soleil et le plan équatorial :</p>
+
+<div class="formula-box">
+    \[\delta = \arcsin(\sin(e) \times \sin(L))\]
+</div>
+
+<p>Valeurs typiques :</p>
+<ul>
+    <li>Solstice d'été (21 juin) : \(\delta \approx +23.44°\)</li>
+    <li>Équinoxes (21 mars, 23 sept) : \(\delta \approx 0°\)</li>
+    <li>Solstice d'hiver (21 déc) : \(\delta \approx -23.44°\)</li>
+</ul>
+
+<h3>2.4 Équation du temps</h3>
+
+<p>L'équation du temps \(EqT\) corrige la différence entre le temps solaire moyen et le temps solaire vrai :</p>
+
+<div class="formula-box">
+    \[RA = \frac{1}{15} \arctan2(\cos(e) \sin(L), \cos(L))\]
+    \[EqT = \frac{q}{15} - RA \pmod{24}\]
+</div>
+
+<p>\(EqT\) varie entre environ -14 et +16 minutes au cours de l'année.</p>
+
+<h3>2.5 Midi solaire</h3>
+
+<p>Le midi solaire local (en heures) pour une longitude \(\lambda\) et un fuseau horaire \(TZ\) :</p>
+
+<div class="formula-box">
+    \[T_{noon} = 12 - EqT + TZ - \frac{\lambda}{15}\]
+</div>
+
+<p>Le facteur \(\frac{\lambda}{15}\) convertit la longitude en heures (360° = 24h, donc 15° = 1h).</p>
+
+<h2 id="section3">3. Calcul direct des heures de prière</h2>
+
+<h3 id="section3-1">3.1 Formule générale</h3>
+
+<p>Pour une prière définie par un angle \(\alpha\) sous l'horizon, l'heure est :</p>
+
+<div class="formula-box">
+    \[T = T_{noon} \pm \frac{H}{15}\]
+    <p>Où l'angle horaire \(H\) est :</p>
+    \[H = \arccos\left( \frac{-\sin(\alpha) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<p>Convention de signe :</p>
+<ul>
+    <li><strong>Matin</strong> (avant midi) : \(T = T_{noon} - \frac{H}{15}\)</li>
+    <li><strong>Soir</strong> (après midi) : \(T = T_{noon} + \frac{H}{15}\)</li>
+</ul>
+
+<h3>Condition d'existence</h3>
+
+<p>La prière existe seulement si l'argument de l'arccos est dans [-1, 1] :</p>
+
+<div class="formula-box">
+    \[\left| \frac{-\sin(\alpha) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right| \leq 1\]
+</div>
+
+<p>Cette condition peut échouer aux hautes latitudes (nuit polaire ou jour polaire).</p>
+
+<!-- FAJR -->
+<div class="prayer-section">
+<h3 id="section3-2">3.2 Fajr (الفجر) - L'Aube</h3>
+
+<h4>Définition</h4>
+<p>Le Fajr correspond à l'aube astronomique, quand la première lueur apparaît à l'horizon Est. C'est le moment où le Soleil atteint un angle spécifique sous l'horizon.</p>
+
+<h4>Formule</h4>
+<div class="formula-box">
+    \[T_{Fajr} = T_{noon} - \frac{1}{15} \arccos\left( \frac{-\sin(\alpha_{Fajr}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<h4>Angles selon les méthodes</h4>
+<table>
+    <tr><th>Méthode</th><th>Angle \(\alpha_{Fajr}\)</th><th>Régions</th></tr>
+    <tr><td>MWL (Muslim World League)</td><td>18°</td><td>Europe, Amérique</td></tr>
+    <tr><td>ISNA</td><td>15°</td><td>Amérique du Nord</td></tr>
+    <tr><td>Egypt</td><td>19.5°</td><td>Afrique, Moyen-Orient</td></tr>
+    <tr><td>Makkah (Umm Al-Qura)</td><td>18.5°</td><td>Arabie Saoudite</td></tr>
+    <tr><td>Karachi</td><td>18°</td><td>Pakistan, Bangladesh</td></tr>
+    <tr><td>Tehran</td><td>17.7°</td><td>Iran</td></tr>
+    <tr><td>Jafari</td><td>16°</td><td>Communautés chiites</td></tr>
+</table>
+
+<h4>Calcul inverse (pour isochrones)</h4>
+<div class="formula-box">
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible}) - H\]
+    <p>Avec \(H = \arccos\left( \frac{-\sin(\alpha_{Fajr}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</p>
+</div>
+</div>
+
+<!-- SUNRISE -->
+<div class="prayer-section">
+<h3 id="section3-3">3.3 Sunrise (الشروق) - Lever du Soleil</h3>
+
+<h4>Définition</h4>
+<p>Le lever du soleil est le moment où le bord supérieur du Soleil apparaît à l'horizon. L'angle utilisé tient compte de la réfraction atmosphérique.</p>
+
+<h4>Formule</h4>
+<div class="formula-box">
+    \[T_{Sunrise} = T_{noon} - \frac{1}{15} \arccos\left( \frac{-\sin(0.833°) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<h4>Angle de réfraction</h4>
+<p>L'angle de 0.833° se décompose en :</p>
+<ul>
+    <li><strong>0.533°</strong> : Demi-diamètre apparent du Soleil</li>
+    <li><strong>0.300°</strong> : Réfraction atmosphérique moyenne à l'horizon</li>
+</ul>
+
+<p>Pour tenir compte de l'altitude \(h\) (en mètres) :</p>
+<div class="formula-box">
+    \[\alpha_{Sunrise} = 0.833° + 0.0347° \times \sqrt{h}\]
+</div>
+
+<h4>Calcul inverse</h4>
+<div class="formula-box">
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible}) - H\]
+    <p>Avec \(H = \arccos\left( \frac{-\sin(0.833°) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</p>
+</div>
+</div>
+
+<!-- DHUHR -->
+<div class="prayer-section">
+<h3 id="section3-4">3.4 Dhuhr (الظهر) - Midi</h3>
+
+<h4>Définition</h4>
+<p>Dhuhr correspond au midi solaire, quand le Soleil atteint son point le plus haut dans le ciel (passage au méridien).</p>
+
+<h4>Formule</h4>
+<div class="formula-box">
+    \[T_{Dhuhr} = T_{noon} = 12 - EqT + TZ - \frac{\lambda}{15}\]
+</div>
+
+<div class="important">
+    <p><strong>Propriété remarquable</strong> : L'heure de Dhuhr ne dépend PAS de la latitude φ. Elle ne dépend que de la longitude λ, du fuseau horaire TZ, et de l'équation du temps EqT.</p>
+</div>
+
+<h4>Calcul inverse</h4>
+<p>Pour Dhuhr, la formule inverse est directe :</p>
+<div class="formula-box">
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible})\]
+</div>
+
+<p>Les isochrones de Dhuhr sont des <strong>lignes verticales</strong> (longitude constante).</p>
+</div>
+
+<!-- ASR -->
+<div class="prayer-section">
+<h3 id="section3-5">3.5 Asr (العصر) - Après-midi</h3>
+
+<h4>Définition</h4>
+<p>L'Asr est défini par la longueur de l'ombre d'un objet. Quand l'ombre atteint une certaine longueur par rapport à l'objet, c'est l'heure de l'Asr.</p>
+
+<h4>Calcul de l'angle</h4>
+<p>L'angle de l'Asr dépend de la latitude et de la déclinaison solaire :</p>
+
+<div class="formula-box">
+    \[\alpha_{Asr} = -\text{arccot}\left(f + \tan|\phi - \delta|\right)\]
+    <p>Où \(f\) est le facteur de l'école juridique :</p>
+    <ul>
+        <li>\(f = 1\) : École Shafi'i, Maliki, Hanbali (standard)</li>
+        <li>\(f = 2\) : École Hanafi</li>
+    </ul>
+</div>
+
+<p>Équivalent avec arctan :</p>
+\[\alpha_{Asr} = -\arctan\left(\frac{1}{f + \tan|\phi - \delta|}\right)\]
+
+<h4>Formule complète</h4>
+<div class="formula-box">
+    \[T_{Asr} = T_{noon} + \frac{1}{15} \arccos\left( \frac{-\sin(\alpha_{Asr}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<h4>Calcul inverse</h4>
+<div class="formula-box">
+    <p>Pour chaque latitude φ :</p>
+    <ol>
+        <li>Calculer l'angle : \(\alpha_{Asr} = -\text{arccot}(f + \tan|\phi - \delta|)\)</li>
+        <li>Calculer l'angle horaire : \(H = \arccos\left( \frac{-\sin(\alpha_{Asr}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</li>
+        <li>Calculer la longitude : \(\lambda = 15 \times (12 - EqT + TZ - T_{cible}) + H\)</li>
+    </ol>
+</div>
+
+<div class="warning">
+    <p><strong>Particularité</strong> : L'angle Asr dépend de la latitude, ce qui rend le calcul légèrement plus complexe. Cependant, avec l'approche λ = f(φ), le calcul reste direct (pas d'itération).</p>
+</div>
+</div>
+
+<!-- MAGHRIB -->
+<div class="prayer-section">
+<h3 id="section3-6">3.6 Maghrib (المغرب) - Coucher du Soleil</h3>
+
+<h4>Définition</h4>
+<p>Maghrib correspond au coucher du soleil, quand le bord supérieur du Soleil disparaît sous l'horizon Ouest.</p>
+
+<h4>Formule</h4>
+<div class="formula-box">
+    \[T_{Maghrib} = T_{noon} + \frac{1}{15} \arccos\left( \frac{-\sin(\alpha_{Maghrib}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<h4>Angles selon les méthodes</h4>
+<table>
+    <tr><th>Méthode</th><th>Angle \(\alpha_{Maghrib}\)</th><th>Description</th></tr>
+    <tr><td>Standard</td><td>0.833°</td><td>Coucher du soleil (symétrique au lever)</td></tr>
+    <tr><td>Tehran</td><td>4.5°</td><td>Quelques minutes après le coucher</td></tr>
+    <tr><td>Jafari</td><td>4°</td><td>Quelques minutes après le coucher</td></tr>
+</table>
+
+<h4>Calcul inverse</h4>
+<div class="formula-box">
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible}) + H\]
+    <p>Avec \(H = \arccos\left( \frac{-\sin(\alpha_{Maghrib}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</p>
+</div>
+</div>
+
+<!-- ISHA -->
+<div class="prayer-section">
+<h3 id="section3-7">3.7 Isha (العشاء) - Nuit</h3>
+
+<h4>Définition</h4>
+<p>Isha correspond au crépuscule astronomique, quand la dernière lueur du jour disparaît. C'est le moment où le Soleil atteint un angle spécifique sous l'horizon.</p>
+
+<h4>Formule</h4>
+<div class="formula-box">
+    \[T_{Isha} = T_{noon} + \frac{1}{15} \arccos\left( \frac{-\sin(\alpha_{Isha}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+</div>
+
+<h4>Angles selon les méthodes</h4>
+<table>
+    <tr><th>Méthode</th><th>Angle \(\alpha_{Isha}\)</th><th>Alternative</th></tr>
+    <tr><td>MWL</td><td>17°</td><td>-</td></tr>
+    <tr><td>ISNA</td><td>15°</td><td>-</td></tr>
+    <tr><td>Egypt</td><td>17.5°</td><td>-</td></tr>
+    <tr><td>Makkah</td><td>-</td><td>90 min après Maghrib</td></tr>
+    <tr><td>Karachi</td><td>18°</td><td>-</td></tr>
+    <tr><td>Tehran</td><td>14°</td><td>-</td></tr>
+    <tr><td>Jafari</td><td>14°</td><td>-</td></tr>
+</table>
+
+<h4>Calcul inverse</h4>
+<div class="formula-box">
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible}) + H\]
+    <p>Avec \(H = \arccos\left( \frac{-\sin(\alpha_{Isha}) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</p>
+</div>
+</div>
+
+<h2 id="section4">4. Calcul inverse pour les isochrones</h2>
+
+<h3 id="section4-1">4.1 Approche λ = f(φ) - Longitude en fonction de la Latitude</h3>
+
+<p>Pour tracer les courbes isochrones, on cherche l'ensemble des points (λ, φ) où une prière a lieu à une heure donnée \(T_{cible}\).</p>
+
+<div class="important">
+    <p><strong>Idée clé</strong> : Au lieu de fixer la longitude et chercher la latitude (approche compliquée avec 2 solutions possibles), on fixe la latitude et on calcule directement la longitude.</p>
+</div>
+
+<h4>Dérivation de la formule</h4>
+
+<p>Partant de la formule directe :</p>
+\[T = T_{noon} \pm \frac{H}{15}\]
+
+<p>Où \(T_{noon} = 12 - EqT + TZ - \frac{\lambda}{15}\)</p>
+
+<p>On résout pour λ :</p>
+
+<div class="formula-box">
+    \[T = 12 - EqT + TZ - \frac{\lambda}{15} \pm \frac{H}{15}\]
+    \[\frac{\lambda}{15} = 12 - EqT + TZ - T \pm \frac{H}{15}\]
+    \[\boxed{\lambda = 15 \times (12 - EqT + TZ - T) \pm H}\]
+</div>
+
+<h4>Convention de signe</h4>
+<ul>
+    <li><strong>Prières du matin</strong> (Fajr, Sunrise) : \(\lambda = 15 \times (12 - EqT + TZ - T_{cible}) - H\)</li>
+    <li><strong>Prières du soir</strong> (Asr, Maghrib, Isha) : \(\lambda = 15 \times (12 - EqT + TZ - T_{cible}) + H\)</li>
+    <li><strong>Dhuhr</strong> : \(\lambda = 15 \times (12 - EqT + TZ - T_{cible})\) (pas de terme H)</li>
+</ul>
+
+<h3 id="section4-2">4.2 Formules inverses par prière</h3>
+
+<table>
+    <tr>
+        <th>Prière</th>
+        <th>Formule inverse λ = f(φ)</th>
+    </tr>
+    <tr>
+        <td><strong>Fajr</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T) - \arccos\left(\frac{-\sin\alpha_{Fajr} - \sin\delta\sin\phi}{\cos\delta\cos\phi}\right)\)</td>
+    </tr>
+    <tr>
+        <td><strong>Sunrise</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T) - \arccos\left(\frac{-\sin(0.833°) - \sin\delta\sin\phi}{\cos\delta\cos\phi}\right)\)</td>
+    </tr>
+    <tr>
+        <td><strong>Dhuhr</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T)\)</td>
+    </tr>
+    <tr>
+        <td><strong>Asr</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T) + \arccos\left(\frac{-\sin\alpha_{Asr}(\phi) - \sin\delta\sin\phi}{\cos\delta\cos\phi}\right)\)<br>
+        avec \(\alpha_{Asr} = -\text{arccot}(f + \tan|\phi-\delta|)\)</td>
+    </tr>
+    <tr>
+        <td><strong>Maghrib</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T) + \arccos\left(\frac{-\sin\alpha_{Maghrib} - \sin\delta\sin\phi}{\cos\delta\cos\phi}\right)\)</td>
+    </tr>
+    <tr>
+        <td><strong>Isha</strong></td>
+        <td>\(\lambda = 15(12 - EqT + TZ - T) + \arccos\left(\frac{-\sin\alpha_{Isha} - \sin\delta\sin\phi}{\cos\delta\cos\phi}\right)\)</td>
+    </tr>
+</table>
+
+<h3 id="section4-3">4.3 Gestion des fuseaux horaires</h3>
+
+<h4>4.3.1 Fuseau horaire fixe par pays</h4>
+
+<p>Pour éviter les discontinuités dans le calcul des heures de prière, un <strong>fuseau horaire fixe</strong> est utilisé pour chaque pays.</p>
+
+<div class="important">
+    <p><strong>Problème résolu</strong> : L'ancienne approche \(TZ = \text{round}(\lambda/15)\) causait des sauts d'une heure aux longitudes frontières (±7.5°, ±22.5°, ±37.5°, etc.).</p>
+    <p>Par exemple, en France (TZ=1), un point à λ=7.4° donnait TZ=0, tandis qu'un point à λ=7.6° donnait TZ=1, causant une discontinuité d'1 heure.</p>
+</div>
+
+<div class="formula-box">
+    <p><strong>Solution</strong> : Utiliser un fuseau horaire unique \(TZ_{pays}\) pour tout le pays :</p>
+    \[\lambda = 15 \times (12 - EqT + TZ_{pays} - T_{cible}) \pm H\]
+    <p>Le fuseau \(TZ_{pays}\) est défini dans un dictionnaire par pays :</p>
+    <ul>
+        <li>France : TZ = 1 (CET)</li>
+        <li>Tunisie : TZ = 1</li>
+        <li>Maroc : TZ = 0 (WET) ou 1</li>
+        <li>Arabie Saoudite : TZ = 3</li>
+        <li>etc.</li>
+    </ul>
+</div>
+
+<h4>4.3.2 Pays multi-fuseaux horaires</h4>
+
+<p>Pour les pays qui s'étendent sur plusieurs fuseaux horaires (USA, Russie, Canada...), on trace les isochrones pour chaque fuseau séparément.</p>
+
+<div class="formula-box">
+    <p><strong>Algorithme</strong> :</p>
+    <ol>
+        <li>Déterminer la plage de fuseaux : \(TZ_{min} = \lfloor \lambda_{min}/15 \rfloor\), \(TZ_{max} = \lceil \lambda_{max}/15 \rceil\)</li>
+        <li>Pour chaque fuseau TZ dans \([TZ_{min}, TZ_{max}]\) :</li>
+        <li style="margin-left: 20px;">Pour chaque latitude φ :</li>
+        <li style="margin-left: 40px;">Calculer \(\lambda = f(\phi, TZ)\)</li>
+        <li style="margin-left: 40px;">Vérifier que \(\text{round}(\lambda/15) = TZ\) (cohérence)</li>
+        <li style="margin-left: 40px;">Si valide, ajouter le point au segment de ce fuseau</li>
+        <li>Tracer chaque segment séparément (évite les croisements)</li>
+    </ol>
+</div>
+
+<div class="warning">
+    <p><strong>Note</strong> : Pour les pays à fuseau unique mais avec un fuseau "atypique" (ex: Chine entière sur TZ=8 malgré sa largeur), le fuseau fixe \(TZ_{pays}\) est utilisé pour assurer la cohérence avec les horaires officiels du pays.</p>
+</div>
+
+<h2 id="section5">5. Exemples numériques</h2>
+
+<h3>5.1 Exemple : Calcul direct pour Tunis</h3>
+
+<div class="example">
+    <p><strong>Données</strong> :</p>
+    <ul>
+        <li>Date : 15 janvier 2025</li>
+        <li>Latitude : φ = 36.8°N</li>
+        <li>Longitude : λ = 10.18°E</li>
+        <li>Fuseau : TZ = 1 (CET)</li>
+        <li>Méthode : MWL (Fajr = 18°, Isha = 17°)</li>
+    </ul>
+
+    <p><strong>Étape 1 : Paramètres solaires</strong></p>
+    <ul>
+        <li>JD = 2460691.5</li>
+        <li>δ ≈ -21.1° (Soleil au sud)</li>
+        <li>EqT ≈ -9.2 minutes = -0.153 h</li>
+    </ul>
+
+    <p><strong>Étape 2 : Midi solaire</strong></p>
+    \[T_{noon} = 12 - (-0.153) + 1 - \frac{10.18}{15} = 12.47 \text{ h} = 12:28\]
+
+    <p><strong>Étape 3 : Calcul de Fajr</strong></p>
+    \[H = \arccos\left(\frac{-\sin(18°) - \sin(-21.1°)\sin(36.8°)}{\cos(-21.1°)\cos(36.8°)}\right)\]
+    \[H = \arccos\left(\frac{-0.309 + 0.216}{0.933 \times 0.801}\right) = \arccos(-0.124) = 97.1°\]
+    \[T_{Fajr} = 12.47 - \frac{97.1}{15} = 12.47 - 6.47 = 6.00 \text{ h} = 06:00\]
+</div>
+
+<h3>5.2 Exemple : Calcul inverse pour une isochrone</h3>
+
+<div class="example">
+    <p><strong>Problème</strong> : Trouver la longitude où Fajr = 06:30 pour φ = 45°N</p>
+
+    <p><strong>Données</strong> :</p>
+    <ul>
+        <li>T_cible = 6.5 h</li>
+        <li>φ = 45°</li>
+        <li>TZ = 1 (supposé)</li>
+        <li>α = 18° (Fajr MWL)</li>
+        <li>δ = -21.1°, EqT = -0.153 h (même date)</li>
+    </ul>
+
+    <p><strong>Étape 1 : Calculer H</strong></p>
+    \[H = \arccos\left(\frac{-\sin(18°) - \sin(-21.1°)\sin(45°)}{\cos(-21.1°)\cos(45°)}\right)\]
+    \[H = \arccos\left(\frac{-0.309 + 0.254}{0.933 \times 0.707}\right) = \arccos(-0.083) = 94.8°\]
+
+    <p><strong>Étape 2 : Calculer λ</strong></p>
+    \[\lambda = 15 \times (12 - (-0.153) + 1 - 6.5) - 94.8\]
+    \[\lambda = 15 \times 6.653 - 94.8 = 99.8 - 94.8 = 5.0°\]
+
+    <p><strong>Résultat</strong> : À la latitude 45°N, Fajr = 06:30 à la longitude <strong>5°E</strong></p>
+
+    <p><strong>Vérification</strong> : 5°E avec TZ=1 donne round(5/15)=0 ≠ 1, donc ce point appartient au fuseau TZ=0.</p>
+</div>
+
+<h2 id="section6">6. Implémentation Python</h2>
+
+<h3>6.1 Fonction de calcul de la longitude</h3>
+
+<pre>
+def compute_longitude(lat, target_time, decl, eqt, tz, angle, direction, is_asr, asr_factor):
+    """
+    Calcule la longitude où la prière a lieu à target_time pour une latitude donnée.
+
+    Args:
+        lat: Latitude en degrés
+        target_time: Heure cible en heures décimales
+        decl: Déclinaison solaire en degrés
+        eqt: Équation du temps en heures
+        tz: Fuseau horaire
+        angle: Angle de la prière en degrés
+        direction: 'ccw' (matin) ou 'cw' (soir)
+        is_asr: True si c'est la prière Asr
+        asr_factor: Facteur Asr (1 ou 2)
+
+    Returns:
+        Longitude en degrés ou None si pas de solution
+    """
+    import math
+
+    # Cas spécial : Dhuhr
+    if direction is None:
+        return 15 * (12 - eqt + tz - target_time)
+
+    # Pour Asr, l'angle dépend de la latitude
+    if is_asr:
+        angle = -math.degrees(math.atan(1.0 / (asr_factor + math.tan(math.radians(abs(lat - decl))))))
+
+    # Calculer l'angle horaire H
+    cos_lat = math.cos(math.radians(lat))
+    sin_lat = math.sin(math.radians(lat))
+    cos_decl = math.cos(math.radians(decl))
+    sin_decl = math.sin(math.radians(decl))
+    sin_angle = math.sin(math.radians(angle))
+
+    cos_H = (-sin_angle - sin_decl * sin_lat) / (cos_decl * cos_lat)
+
+    if abs(cos_H) > 1:
+        return None  # Pas de solution
+
+    H = math.degrees(math.acos(cos_H))
+
+    # Calculer la longitude
+    base_lon = 15 * (12 - eqt + tz - target_time)
+
+    if direction == 'ccw':  # Matin
+        return base_lon - H
+    else:  # Soir
+        return base_lon + H
+</pre>
+
+<h3>6.2 Génération des isochrones</h3>
+
+<pre>
+def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
+    """
+    Génère une courbe isochrone pour une prière et une heure données.
+    """
+    target_time = target_minutes / 60.0
+
+    # Calculer les paramètres solaires
+    jd = julian(date)
+    decl, eqt = sun_position(jd)
+
+    # Déterminer les fuseaux horaires couverts
+    tz_min = int(lon_range[0] / 15)
+    tz_max = int(lon_range[1] / 15) + 1
+
+    segments = []
+
+    for tz in range(tz_min, tz_max + 1):
+        segment = []
+
+        for lat in np.linspace(lat_range[0], lat_range[1], 200):
+            lon = compute_longitude(lat, target_time, decl, eqt, tz, ...)
+
+            if lon is not None and lon_range[0] <= lon <= lon_range[1]:
+                # Vérifier la cohérence du fuseau
+                if round(lon / 15) == tz:
+                    segment.append((lon, lat))
+
+        if len(segment) >= 2:
+            segments.append(segment)
+
+    return segments
+</pre>
+
+<h2 id="section6bis">6bis. Clipping des bandes isochrones par les frontières</h2>
+
+<h3>6bis.1 Problème</h3>
+
+<p>Les bandes isochrones calculées par l'approche \(\lambda = f(\phi)\) couvrent naturellement le <strong>rectangle englobant</strong> (bounding box) du pays. Cela signifie que les bandes débordent hors des frontières, ce qui est visuellement incorrect et pose problème pour l'export cartographique.</p>
+
+<div class="important">
+    <p><strong>Exemple</strong> : Pour la France, les bandes couvrent le rectangle [−5°, 9.5°] × [41.3°, 51.1°], incluant des zones en mer et dans les pays voisins.</p>
+</div>
+
+<h3>6bis.2 Solution : Intersection géométrique</h3>
+
+<p>On utilise <strong>Shapely</strong> pour calculer l'intersection entre chaque bande et la géométrie du pays :</p>
+
+<div class="formula-box">
+    <p><strong>Algorithme</strong> :</p>
+    <ol>
+        <li>Calculer la géométrie unifiée du pays : <code>country_shape = gdf.geometry.unary_union</code></li>
+        <li>Pour chaque bande isochrone (polygone entre deux courbes consécutives) :</li>
+        <li style="margin-left: 20px;">Créer le polygone Shapely : <code>band_poly = Polygon(points)</code></li>
+        <li style="margin-left: 20px;">Valider la géométrie : <code>if not band_poly.is_valid: band_poly = band_poly.buffer(0)</code></li>
+        <li style="margin-left: 20px;">Calculer l'intersection : <code>clipped = band_poly.intersection(country_shape)</code></li>
+        <li style="margin-left: 20px;">Traiter le résultat (peut être Polygon, MultiPolygon ou GeometryCollection)</li>
+        <li style="margin-left: 20px;">Dessiner les polygones résultants</li>
+    </ol>
+</div>
+
+<h3>6bis.3 Cas géométriques</h3>
+
+<p>L'intersection peut produire différents types de géométries :</p>
+
+<table>
+    <tr><th>Type résultat</th><th>Cas d'usage</th><th>Traitement</th></tr>
+    <tr><td><strong>Polygon</strong></td><td>Cas le plus courant (pays compact)</td><td>Dessiner directement</td></tr>
+    <tr><td><strong>MultiPolygon</strong></td><td>Pays avec îles ou frontières complexes</td><td>Itérer sur chaque polygone</td></tr>
+    <tr><td><strong>GeometryCollection</strong></td><td>Cas rare (tangences)</td><td>Extraire les Polygon uniquement</td></tr>
+    <tr><td><strong>Empty</strong></td><td>Bande hors du pays</td><td>Ignorer</td></tr>
+</table>
+
+<h3>6bis.4 Impact sur les étiquettes</h3>
+
+<p>Les étiquettes de temps sont positionnées au <strong>centroïde</strong> du polygone clippé (et non plus au centre du rectangle), ce qui garantit qu'elles sont toujours à l'intérieur du territoire.</p>
+
+<pre>
+centroid = clipped.centroid
+center_lon, center_lat = centroid.x, centroid.y
+</pre>
+
+<h2 id="section7">7. Analyse de précision</h2>
+
+<h3>7.1 Sources d'erreur</h3>
+
+<table>
+    <tr>
+        <th>Source</th>
+        <th>Impact</th>
+        <th>Ordre de grandeur</th>
+    </tr>
+    <tr>
+        <td>Approximation de la position solaire</td>
+        <td>Déclinaison, équation du temps</td>
+        <td>± 1 minute</td>
+    </tr>
+    <tr>
+        <td>Réfraction atmosphérique</td>
+        <td>Lever/coucher du soleil</td>
+        <td>± 2 minutes</td>
+    </tr>
+    <tr>
+        <td>Altitude du lieu</td>
+        <td>Horizon effectif</td>
+        <td>± 1-3 minutes</td>
+    </tr>
+    <tr>
+        <td><s>Fuseau horaire simplifié</s></td>
+        <td><s>TZ = round(λ/15) vs TZ réel</s></td>
+        <td><s>± 30 minutes max</s> → <strong>RÉSOLU (v2.1)</strong></td>
+    </tr>
+    <tr>
+        <td>Précision numérique</td>
+        <td>Calculs flottants</td>
+        <td>Négligeable</td>
+    </tr>
+</table>
+
+<h3>7.2 Avantages de l'approche λ = f(φ)</h3>
+
+<div class="success">
+    <table>
+        <tr>
+            <th>Critère</th>
+            <th>Ancienne approche φ = f(λ)</th>
+            <th>Nouvelle approche λ = f(φ)</th>
+        </tr>
+        <tr>
+            <td>Nombre de solutions</td>
+            <td>0, 1 ou 2 (ambiguïté)</td>
+            <td>0 ou 1 (univoque)</td>
+        </tr>
+        <tr>
+            <td>Méthode de résolution</td>
+            <td>Itérative (bisection pour Asr)</td>
+            <td>Directe (analytique)</td>
+        </tr>
+        <tr>
+            <td>Risque de crash</td>
+            <td>Division par zéro possible</td>
+            <td>Minimal</td>
+        </tr>
+        <tr>
+            <td>Performance</td>
+            <td>Lente (scan + itérations)</td>
+            <td>Rapide (~200 calculs/courbe)</td>
+        </tr>
+        <tr>
+            <td>Stabilité</td>
+            <td>Courbes parfois incorrectes</td>
+            <td>Courbes toujours correctes</td>
+        </tr>
+    </table>
+</div>
+
+<h2 id="section8">8. Conclusion</h2>
+
+<h3>8.1 Résumé des formules</h3>
+
+<div class="formula-box">
+    <p><strong>Calcul direct</strong> (position → heure) :</p>
+    \[T = T_{noon} \pm \frac{1}{15} \arccos\left( \frac{-\sin(\alpha) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\]
+
+    <p><strong>Calcul inverse</strong> (heure → longitude) :</p>
+    \[\lambda = 15 \times (12 - EqT + TZ - T_{cible}) \pm H\]
+    <p>Avec \(H = \arccos\left( \frac{-\sin(\alpha) - \sin(\delta) \sin(\phi)}{\cos(\delta) \cos(\phi)} \right)\)</p>
+</div>
+
+<h3>8.2 Points clés</h3>
+
+<ol>
+    <li><strong>Approche λ = f(φ)</strong> est supérieure à φ = f(λ) pour les isochrones</li>
+    <li><strong>Dhuhr</strong> produit des lignes verticales (indépendant de la latitude)</li>
+    <li><strong>Asr</strong> nécessite un calcul d'angle dépendant de la latitude, mais reste direct</li>
+    <li><strong>Multi-fuseaux</strong> : tracer des segments séparés par fuseau pour éviter les croisements</li>
+    <li><strong>Clipping</strong> : les bandes sont intersectées avec les frontières du pays via Shapely pour un rendu propre</li>
+</ol>
+
+<h3>8.3 Références</h3>
+
+<ul>
+    <li>PrayTimes.org - Algorithmes de calcul des heures de prière</li>
+    <li>Jean Meeus - "Astronomical Algorithms" (1991)</li>
+    <li>NOAA Solar Calculator</li>
+    <li>Wikipedia - Equation of time</li>
+</ul>
+
+<hr>
+<p style="text-align: center; color: #666;">
+    <em>Document généré pour le projet Mawaquit - Version 3.2 - Février 2026</em>
+</p>
+
+</body>
+</html>

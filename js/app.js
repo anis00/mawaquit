@@ -11,7 +11,8 @@ class MawaquitApp {
             currentTimezone: 0,
             markerPosition: null,
             countryData: {},
-            activeIsochrone: null
+            activeIsochrone: null,
+            lastClippedBands: null
         };
 
         // Module instances
@@ -67,6 +68,7 @@ class MawaquitApp {
         uiManager.onLevel2Toggle = this.onLevel2Toggle.bind(this);
         uiManager.onIsochroneRequest = this.onIsochroneRequest.bind(this);
         uiManager.onClearIsochrones = this.onClearIsochrones.bind(this);
+        uiManager.onExportRequest = this.onExportRequest.bind(this);
     }
 
     /**
@@ -118,8 +120,9 @@ class MawaquitApp {
             // Clear isochrones
             this.onClearIsochrones();
 
-            // Enable isochrone buttons
+            // Enable isochrone buttons and export
             uiManager.setIsoButtonsEnabled(true);
+            uiManager.setExportEnabled(true);
 
             uiManager.hideLoading();
             uiManager.setStatus(`${countryName} loaded. Click on the map to get prayer times.`, 'success');
@@ -129,6 +132,7 @@ class MawaquitApp {
             uiManager.hideLoading();
             uiManager.setStatus('Error loading country: ' + error.message, 'error');
             uiManager.setIsoButtonsEnabled(false);
+            uiManager.setExportEnabled(false);
         }
     }
 
@@ -236,6 +240,78 @@ class MawaquitApp {
     }
 
     /**
+     * Clip isochrone bands to country boundaries using Turf.js
+     * @param {Array} bands - Raw bands from worker
+     * @param {Object} countryGeojson - Level 0 GeoJSON (country outline)
+     * @returns {Array} Clipped bands with GeoJSON geometry
+     */
+    clipBands(bands, countryGeojson) {
+        if (!countryGeojson || typeof turf === 'undefined') {
+            return bands;
+        }
+
+        // Build a single country geometry (union of all features)
+        let countryFeature;
+        if (countryGeojson.type === 'FeatureCollection' && countryGeojson.features.length > 0) {
+            if (countryGeojson.features.length === 1) {
+                countryFeature = countryGeojson.features[0];
+            } else {
+                // Union all features into one
+                countryFeature = countryGeojson.features[0];
+                for (let i = 1; i < countryGeojson.features.length; i++) {
+                    try {
+                        countryFeature = turf.union(
+                            turf.featureCollection([countryFeature, countryGeojson.features[i]])
+                        );
+                    } catch (e) {
+                        // Skip invalid features
+                    }
+                }
+            }
+        } else if (countryGeojson.type === 'Feature') {
+            countryFeature = countryGeojson;
+        } else {
+            return bands;
+        }
+
+        const clippedBands = [];
+
+        for (let i = 0; i < bands.length; i++) {
+            const band = bands[i];
+            if (!band.polygon || band.polygon.length < 4) continue;
+
+            try {
+                // Create a Turf polygon from the band coordinates [lon, lat]
+                const bandFeature = turf.polygon([band.polygon]);
+
+                // Intersect with country
+                const clipped = turf.intersect(
+                    turf.featureCollection([bandFeature, countryFeature])
+                );
+
+                if (!clipped || !clipped.geometry) continue;
+
+                // Compute centroid for label placement
+                const centroid = turf.centroid(clipped);
+                const labelPos = centroid.geometry.coordinates; // [lon, lat]
+
+                clippedBands.push({
+                    geometry: clipped.geometry,
+                    label: band.label,
+                    labelPos: labelPos,
+                    minute: band.minute,
+                    color: band.color
+                });
+            } catch (e) {
+                // Fallback: use original band if clipping fails
+                clippedBands.push(band);
+            }
+        }
+
+        return clippedBands;
+    }
+
+    /**
      * Handle isochrone request
      */
     async onIsochroneRequest(prayer) {
@@ -273,11 +349,21 @@ class MawaquitApp {
                 throw new Error(result.error);
             }
 
-            mapManager.drawIsochrones(result.bands);
+            // Clip bands to country boundaries
+            const countryGeojson = this.state.countryData[0];
+            const clippedBands = this.clipBands(result.bands, countryGeojson);
+
+            mapManager.drawIsochrones(clippedBands);
             this.state.activeIsochrone = prayer;
+            this.state.lastClippedBands = clippedBands;
 
             uiManager.hideLoading();
             uiManager.setStatus(`${prayer.charAt(0).toUpperCase() + prayer.slice(1)} isochrones displayed`, 'success');
+
+            // Update export isochrone option
+            if (uiManager.updateExportIsoOption) {
+                uiManager.updateExportIsoOption(prayer);
+            }
 
         } catch (error) {
             console.error('Error generating isochrones:', error);
@@ -293,8 +379,101 @@ class MawaquitApp {
     onClearIsochrones() {
         mapManager.clearIsochrones();
         this.state.activeIsochrone = null;
+        this.state.lastClippedBands = null;
         uiManager.setActiveIsoButton(null);
         uiManager.setStatus('Isochrone curves cleared', 'info');
+
+        // Update export isochrone option
+        if (uiManager.updateExportIsoOption) {
+            uiManager.updateExportIsoOption(null);
+        }
+    }
+
+    /**
+     * Handle export request
+     * @param {Object} layers - { borders, provinces, isochrones }
+     */
+    onExportRequest(layers) {
+        if (!this.state.currentCountry) return;
+
+        const countryName = this.state.currentCountry.name;
+        const dateStr = uiManager.getDate().join('-');
+        let exported = 0;
+
+        if (layers.borders && this.state.countryData[0]) {
+            this.downloadGeoJSON(this.state.countryData[0], `${countryName}_${dateStr}_borders.geojson`);
+            exported++;
+        }
+
+        if (layers.provinces && this.state.countryData[1]) {
+            this.downloadGeoJSON(this.state.countryData[1], `${countryName}_${dateStr}_provinces.geojson`);
+            exported++;
+        }
+
+        if (layers.isochrones && this.state.lastClippedBands && this.state.activeIsochrone) {
+            const geojson = this.bandsToGeoJSON(this.state.lastClippedBands);
+            this.downloadGeoJSON(geojson, `${countryName}_${dateStr}_isochrones_${this.state.activeIsochrone}.geojson`);
+            exported++;
+        }
+
+        if (exported > 0) {
+            uiManager.setStatus(`${exported} GeoJSON file(s) exported`, 'success');
+        } else {
+            uiManager.setStatus('No layers selected for export', 'warning');
+        }
+    }
+
+    /**
+     * Convert clipped bands to a GeoJSON FeatureCollection
+     * @param {Array} bands - Clipped bands
+     * @returns {Object} GeoJSON FeatureCollection
+     */
+    bandsToGeoJSON(bands) {
+        const features = bands.map((band, index) => {
+            let geometry;
+            if (band.geometry) {
+                geometry = band.geometry;
+            } else if (band.polygon) {
+                geometry = {
+                    type: 'Polygon',
+                    coordinates: [band.polygon]
+                };
+            } else {
+                return null;
+            }
+
+            return {
+                type: 'Feature',
+                geometry,
+                properties: {
+                    minute: band.minute,
+                    label: band.label || '',
+                    band_index: index
+                }
+            };
+        }).filter(f => f !== null);
+
+        return {
+            type: 'FeatureCollection',
+            features
+        };
+    }
+
+    /**
+     * Download a GeoJSON object as a file
+     * @param {Object} geojson - GeoJSON object
+     * @param {string} filename - File name
+     */
+    downloadGeoJSON(geojson, filename) {
+        const blob = new Blob([JSON.stringify(geojson)], { type: 'application/geo+json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 }
 
