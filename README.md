@@ -63,10 +63,12 @@ Un utilisateur sélectionne un pays, clique sur la carte pour placer un marqueur
 
 - **5 prières** : Fajr, Dhuhr, Asr, Maghrib, Isha
 - **Courbes lisses** : Une courbe par minute (60 niveaux/heure)
-- **Haute précision** : Grille de calcul 100×100 points avec timezone exact
-- **Étiquettes intelligentes** : Format hh:mm toutes les 5 minutes, limitées aux frontières du pays
+- **Haute précision** : Calcul analytique avec timezone exact
+- **Clipping par frontières** : Les bandes isochrones sont limitées à l'intérieur des frontières du pays (intersection Shapely)
+- **Étiquettes intelligentes** : Format hh:mm au centroïde de chaque bande, limitées aux frontières du pays
 - **Titre dynamique** : Affiche "[Pays] - Courbes isochrones de [Prière]"
 - **Effacement** : Bouton pour nettoyer la carte et restaurer le titre
+- **Export multi-format** : GeoPackage, Shapefile, GeoJSON pour QGIS
 
 ### 🏙️ Affichage des villes
 
@@ -161,7 +163,7 @@ mawaquit/
 |---------|-------------|--------|
 | `mawaquit_main.py` | Interface Tkinter + gestion carte + interactions | ~450 lignes |
 | `praytimes.py` | Classe PrayTimes avec algorithmes astronomiques | ~390 lignes |
-| `isochrones.py` | Générateur de courbes isochrones (3 approches : grille, exact, **analytique**) | ~550 lignes |
+| `isochrones.py` | Générateur de courbes isochrones (4 classes : grille, exact, analytique, **bandes clippées**) | ~680 lignes |
 | `inverse_isochrone.py` | Calcul inverse φ=f(λ) - obsolète, remplacé par approche λ=f(φ) | ~400 lignes |
 | `note_calcul_isochrones.html` | Note de calcul mathématique détaillée (v2.1) | ~50 KB |
 | `CLAUDE.md` | Contexte projet pour reprise avec Claude AI | ~3 KB |
@@ -464,9 +466,12 @@ getTimes(date, coords, timezone, format='24h')
 |--------|----------|-------------|-----------|
 | `IsochroneGenerator` | Grille 60×60 + contour | Moyenne | Moyenne |
 | `IsochroneGeneratorExact` | Grille 100×100 + contour | Lente | Bonne |
-| `IsochroneGeneratorDirect` | **Calcul analytique λ=f(φ)** | **Rapide** | **Exacte** |
+| `IsochroneGeneratorDirect` | Calcul analytique λ=f(φ) - lignes | Rapide | Exacte |
+| `IsochroneGeneratorBands` | **Bandes colorées λ=f(φ) + clipping** | **Rapide** | **Exacte** |
 
-**Classe recommandée : `IsochroneGeneratorDirect`** (utilisée par défaut)
+**Classe recommandée : `IsochroneGeneratorBands`** (utilisée par défaut)
+
+**Clipping par frontières** : Les bandes sont intersectées avec la géométrie du pays (`gdf.geometry.unary_union`) via Shapely, de sorte qu'elles ne débordent pas du territoire.
 
 **Principe de l'approche analytique** :
 - Pour chaque heure cible T et latitude φ, calcule directement la longitude λ
@@ -745,11 +750,12 @@ SOFTWARE.
 
 ## 📊 Statistiques du projet
 
-- **Lignes de code** : ~1800 lignes Python
+- **Lignes de code** : ~2000 lignes Python
 - **Modules** : 4 fichiers principaux + documentation
-- **Pays supportés** : 35+ (extensible facilement)
+- **Pays supportés** : 33+ (extensible facilement)
 - **Méthodes de calcul** : 7 méthodes internationales
-- **Approche isochrones** : Calcul analytique direct λ=f(φ) (~200 points/courbe)
+- **Approche isochrones** : Bandes colorées analytiques λ=f(φ) clippées par les frontières
+- **Export** : GeoPackage, Shapefile, GeoJSON (compatible QGIS)
 - **Performance** : < 1 seconde pour tous les pays
 
 ---
@@ -760,5 +766,5 @@ SOFTWARE.
 
 ---
 
-**Dernière mise à jour** : Février 2025
-**Version** : 2.1.0
+**Dernière mise à jour** : Février 2026
+**Version** : 3.2.0

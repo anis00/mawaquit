@@ -143,7 +143,7 @@
 <h1>Note de Calcul Mathématique<br>Heures de Prière et Courbes Isochrones</h1>
 
 <p><strong>Document technique pour le projet Mawaquit</strong></p>
-<p><em>Version 2.1 - Février 2025</em></p>
+<p><em>Version 3.2 - Février 2026</em></p>
 
 <div class="toc">
     <h3>Table des matières</h3>
@@ -170,6 +170,7 @@
         </li>
         <li><a href="#section5">5. Exemples numériques</a></li>
         <li><a href="#section6">6. Implémentation Python</a></li>
+        <li><a href="#section6bis">6bis. Clipping des bandes isochrones par les frontières</a></li>
         <li><a href="#section7">7. Analyse de précision</a></li>
         <li><a href="#section8">8. Conclusion</a></li>
     </ul>
@@ -736,6 +737,54 @@ def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
     return segments
 </pre>
 
+<h2 id="section6bis">6bis. Clipping des bandes isochrones par les frontières</h2>
+
+<h3>6bis.1 Problème</h3>
+
+<p>Les bandes isochrones calculées par l'approche \(\lambda = f(\phi)\) couvrent naturellement le <strong>rectangle englobant</strong> (bounding box) du pays. Cela signifie que les bandes débordent hors des frontières, ce qui est visuellement incorrect et pose problème pour l'export cartographique.</p>
+
+<div class="important">
+    <p><strong>Exemple</strong> : Pour la France, les bandes couvrent le rectangle [−5°, 9.5°] × [41.3°, 51.1°], incluant des zones en mer et dans les pays voisins.</p>
+</div>
+
+<h3>6bis.2 Solution : Intersection géométrique</h3>
+
+<p>On utilise <strong>Shapely</strong> pour calculer l'intersection entre chaque bande et la géométrie du pays :</p>
+
+<div class="formula-box">
+    <p><strong>Algorithme</strong> :</p>
+    <ol>
+        <li>Calculer la géométrie unifiée du pays : <code>country_shape = gdf.geometry.unary_union</code></li>
+        <li>Pour chaque bande isochrone (polygone entre deux courbes consécutives) :</li>
+        <li style="margin-left: 20px;">Créer le polygone Shapely : <code>band_poly = Polygon(points)</code></li>
+        <li style="margin-left: 20px;">Valider la géométrie : <code>if not band_poly.is_valid: band_poly = band_poly.buffer(0)</code></li>
+        <li style="margin-left: 20px;">Calculer l'intersection : <code>clipped = band_poly.intersection(country_shape)</code></li>
+        <li style="margin-left: 20px;">Traiter le résultat (peut être Polygon, MultiPolygon ou GeometryCollection)</li>
+        <li style="margin-left: 20px;">Dessiner les polygones résultants</li>
+    </ol>
+</div>
+
+<h3>6bis.3 Cas géométriques</h3>
+
+<p>L'intersection peut produire différents types de géométries :</p>
+
+<table>
+    <tr><th>Type résultat</th><th>Cas d'usage</th><th>Traitement</th></tr>
+    <tr><td><strong>Polygon</strong></td><td>Cas le plus courant (pays compact)</td><td>Dessiner directement</td></tr>
+    <tr><td><strong>MultiPolygon</strong></td><td>Pays avec îles ou frontières complexes</td><td>Itérer sur chaque polygone</td></tr>
+    <tr><td><strong>GeometryCollection</strong></td><td>Cas rare (tangences)</td><td>Extraire les Polygon uniquement</td></tr>
+    <tr><td><strong>Empty</strong></td><td>Bande hors du pays</td><td>Ignorer</td></tr>
+</table>
+
+<h3>6bis.4 Impact sur les étiquettes</h3>
+
+<p>Les étiquettes de temps sont positionnées au <strong>centroïde</strong> du polygone clippé (et non plus au centre du rectangle), ce qui garantit qu'elles sont toujours à l'intérieur du territoire.</p>
+
+<pre>
+centroid = clipped.centroid
+center_lon, center_lat = centroid.x, centroid.y
+</pre>
+
 <h2 id="section7">7. Analyse de précision</h2>
 
 <h3>7.1 Sources d'erreur</h3>
@@ -830,6 +879,7 @@ def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
     <li><strong>Dhuhr</strong> produit des lignes verticales (indépendant de la latitude)</li>
     <li><strong>Asr</strong> nécessite un calcul d'angle dépendant de la latitude, mais reste direct</li>
     <li><strong>Multi-fuseaux</strong> : tracer des segments séparés par fuseau pour éviter les croisements</li>
+    <li><strong>Clipping</strong> : les bandes sont intersectées avec les frontières du pays via Shapely pour un rendu propre</li>
 </ol>
 
 <h3>8.3 Références</h3>
@@ -843,7 +893,7 @@ def generate_isochrone(prayer_name, target_minutes, lat_range, lon_range, date):
 
 <hr>
 <p style="text-align: center; color: #666;">
-    <em>Document généré pour le projet Mawaquit - Version 2.1 - Février 2025</em>
+    <em>Document généré pour le projet Mawaquit - Version 3.2 - Février 2026</em>
 </p>
 
 </body>

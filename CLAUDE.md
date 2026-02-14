@@ -92,9 +92,19 @@ Où H = angle horaire calculé pour la latitude φ
 
 1. **IsochroneGenerator** : Approche par grille (ancienne, lente)
 2. **IsochroneGeneratorDirect** : Approche analytique lon=f(lat)
-3. **IsochroneGeneratorBands** : Bandes colorées - **UTILISÉE**
+3. **IsochroneGeneratorBands** : Bandes colorées clippées par les frontières - **UTILISÉE**
 
 ## Historique des versions
+
+### v3.2.0 (Février 2026)
+- **Clipping des isochrones** : Les bandes isochrones sont désormais clippées par les frontières du pays via intersection Shapely (`band_poly.intersection(country_shape)`), au lieu de couvrir le rectangle englobant
+- Appliqué à l'affichage (`_draw_band`) et à l'export (`compute_band_polygons`)
+- Gestion des MultiPolygon et GeometryCollection résultant de l'intersection
+
+### v3.1.0 (Février 2026)
+- **Export multi-format** : GeoPackage, Shapefile, GeoJSON pour QGIS
+- GeoPackage : toutes les couches + isochrones des 5 prières
+- Shapefile/GeoJSON : couches au choix, isochrones de la prière affichée
 
 ### v3.0.0 (Février 2025)
 - **Version Web** : Migration vers HTML/JS/Leaflet
@@ -140,6 +150,7 @@ Où H = angle horaire calculé pour la latitude φ
 - [x] Sauts d'1h aux frontières TZ → Fuseau fixe par pays
 - [x] CORS avec GADM → Données locales simplifiées
 - [x] Chargement lent web → Fichiers GeoJSON optimisés
+- [x] Isochrones débordant du pays → Clipping par intersection Shapely avec les frontières
 
 ## Améliorations potentielles
 
