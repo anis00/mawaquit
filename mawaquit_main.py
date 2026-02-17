@@ -179,6 +179,13 @@ class MawaquitApp:
         )
         self.cities_check.pack(side=tk.LEFT, padx=5)
 
+        self.ramadan_mode_var = tk.BooleanVar(value=False)
+        self.ramadan_check = ttk.Checkbutton(
+            control_frame2, text="Mode Ramadan",
+            variable=self.ramadan_mode_var, command=self.toggle_ramadan_mode
+        )
+        self.ramadan_check.pack(side=tk.LEFT, padx=15)
+
         # === Frame carte ===
         map_frame = ttk.Frame(left_frame)
         map_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -223,17 +230,36 @@ class MawaquitApp:
         ttk.Separator(prayer_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
 
         self.prayer_labels = {}
-        for prayer in ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha']:
+        self.prayer_frames = {}
+        # Ordre d'affichage : imsak, fajr, sunrise, dhuhr, asr, maghrib, iftar, isha
+        all_prayers = ['imsak', 'fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'iftar', 'isha']
+        ramadan_prayers = ['imsak', 'iftar']  # Prières visibles uniquement en mode Ramadan
+
+        for prayer in all_prayers:
             frame = ttk.Frame(prayer_frame)
             frame.pack(fill=tk.X, pady=3)
 
-            ttk.Label(frame, text=f"{prayer.capitalize()}:",
-                      font=("Arial", 10, "bold"), width=10).pack(side=tk.LEFT)
+            # Style différent pour les heures Ramadan
+            if prayer in ramadan_prayers:
+                name_label = ttk.Label(frame, text=f"{prayer.capitalize()}:",
+                                       font=("Arial", 10, "bold"), width=10,
+                                       foreground="darkgreen")
+                time_label = ttk.Label(frame, text="--:--",
+                                       font=("Arial", 11), foreground="green")
+            else:
+                name_label = ttk.Label(frame, text=f"{prayer.capitalize()}:",
+                                       font=("Arial", 10, "bold"), width=10)
+                time_label = ttk.Label(frame, text="--:--",
+                                       font=("Arial", 11), foreground="darkblue")
 
-            label = ttk.Label(frame, text="--:--",
-                              font=("Arial", 11), foreground="darkblue")
-            label.pack(side=tk.LEFT)
-            self.prayer_labels[prayer] = label
+            name_label.pack(side=tk.LEFT)
+            time_label.pack(side=tk.LEFT)
+            self.prayer_labels[prayer] = time_label
+            self.prayer_frames[prayer] = frame
+
+            # Masquer par défaut les prières Ramadan
+            if prayer in ramadan_prayers:
+                frame.pack_forget()
 
         # Panel isochrones
         iso_frame = ttk.LabelFrame(right_frame, text="Courbes Isochrones", padding=10)
@@ -243,7 +269,9 @@ class MawaquitApp:
                   font=("Arial", 9)).pack(anchor=tk.W, pady=5)
 
         self.iso_buttons = {}
-        for prayer in ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']:
+        # D'abord les 5 prières standard
+        standard_prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
+        for prayer in standard_prayers:
             btn = ttk.Button(
                 iso_frame, text=prayer.capitalize(),
                 command=lambda p=prayer: self.tracer_isochrones(p)
@@ -251,7 +279,25 @@ class MawaquitApp:
             btn.pack(fill=tk.X, pady=2)
             self.iso_buttons[prayer] = btn
 
-        ttk.Separator(iso_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        # Frame pour les boutons Ramadan (masqué par défaut)
+        self.ramadan_frame = ttk.Frame(iso_frame)
+        ttk.Separator(self.ramadan_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=5)
+        ttk.Label(self.ramadan_frame, text="Mode Ramadan", font=("Arial", 8, "bold"),
+                  foreground="green").pack(anchor=tk.W)
+
+        ramadan_prayers = ['imsak', 'iftar']
+        for prayer in ramadan_prayers:
+            btn = ttk.Button(
+                self.ramadan_frame, text=prayer.capitalize(),
+                command=lambda p=prayer: self.tracer_isochrones(p)
+            )
+            btn.pack(fill=tk.X, pady=2)
+            self.iso_buttons[prayer] = btn
+        # Le ramadan_frame n'est pas packé par défaut
+
+        # Séparateur avant les boutons d'action (pour positionnement)
+        self.action_separator = ttk.Separator(iso_frame, orient=tk.HORIZONTAL)
+        self.action_separator.pack(fill=tk.X, pady=5)
         ttk.Button(iso_frame, text="Effacer Courbes",
                    command=self.clear_isochrones).pack(fill=tk.X, pady=2)
         self.export_btn = ttk.Button(iso_frame, text="Exporter Carte",
@@ -479,6 +525,37 @@ class MawaquitApp:
             return
 
         self.afficher_carte()
+
+    def toggle_ramadan_mode(self):
+        """Active/désactive le mode Ramadan (affiche Imsak et Iftar)"""
+        ramadan_prayers = ['imsak', 'iftar']
+
+        if self.ramadan_mode_var.get():
+            # Activer le mode Ramadan : afficher Imsak avant Fajr, Iftar après Maghrib
+            # Réorganiser l'affichage des heures
+            for prayer in ['imsak', 'fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'iftar', 'isha']:
+                self.prayer_frames[prayer].pack(fill=tk.X, pady=3)
+
+            # Afficher le frame des boutons isochrones Ramadan (avant le séparateur d'action)
+            self.ramadan_frame.pack(fill=tk.X, before=self.action_separator)
+
+            self.status_label.config(
+                text="Mode Ramadan activé (Imsak/Iftar affichés)",
+                foreground="green"
+            )
+        else:
+            # Désactiver le mode Ramadan : masquer Imsak et Iftar
+            for prayer in ramadan_prayers:
+                self.prayer_frames[prayer].pack_forget()
+            self.ramadan_frame.pack_forget()
+
+            self.status_label.config(
+                text="Mode Ramadan désactivé",
+                foreground="blue"
+            )
+
+        # Mettre à jour les heures si un marqueur est posé
+        self.update_prayer_times()
 
     def toggle_cities(self):
         """Active/désactive l'affichage des villes"""
@@ -849,19 +926,21 @@ class MawaquitApp:
         try:
             if self.current_gdf is not None:
                 self.current_gdf.to_file(path, driver='GPKG',
-                                         layer=f'{pays}_{date_str}_niveau0')
+                                         layer=f'{pays}_frontieres')
             if self.current_gdf_level1 is not None:
                 self.current_gdf_level1.to_file(path, driver='GPKG',
-                                                layer=f'{pays}_{date_str}_niveau1')
+                                                layer=f'{pays}_regions')
             if self.current_gdf_level2 is not None:
                 self.current_gdf_level2.to_file(path, driver='GPKG',
-                                                layer=f'{pays}_{date_str}_niveau2')
+                                                layer=f'{pays}_subdivisions')
             if self.cities_gdf is not None:
                 self.cities_gdf.to_file(path, driver='GPKG',
-                                        layer=f'{pays}_{date_str}_villes')
+                                        layer=f'{pays}_villes')
 
-            # Calcul des isochrones : une couche par prière
+            # Calcul des isochrones : une couche par prière (inclut Imsak/Iftar si mode Ramadan)
             prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']
+            if self.ramadan_mode_var.get():
+                prayers = ['imsak', 'fajr', 'dhuhr', 'asr', 'maghrib', 'iftar', 'isha']
             for idx, prayer in enumerate(prayers):
                 self.status_label.config(
                     text=f"Calcul isochrones {prayer} ({idx+1}/{len(prayers)})...",
@@ -878,7 +957,7 @@ class MawaquitApp:
                         polys, geometry='geometry', crs='EPSG:4326'
                     )
                     iso_gdf.to_file(path, driver='GPKG',
-                                    layer=f'{pays}_{date_str}_isochrones_{prayer}')
+                                    layer=f'{pays}_isochrones_{prayer}_{date_str}')
 
             self.status_label.config(
                 text=f"GeoPackage exporté : {os.path.basename(path)}",
@@ -906,22 +985,22 @@ class MawaquitApp:
             exported = []
 
             if "niveau0" in selected_layers and self.current_gdf is not None:
-                p = os.path.join(folder, f"{pays}_{date_str}_niveau0{extension}")
+                p = os.path.join(folder, f"{pays}_frontieres_{date_str}{extension}")
                 self.current_gdf.to_file(p, driver=driver)
                 exported.append(os.path.basename(p))
 
             if "niveau1" in selected_layers and self.current_gdf_level1 is not None:
-                p = os.path.join(folder, f"{pays}_{date_str}_niveau1{extension}")
+                p = os.path.join(folder, f"{pays}_regions_{date_str}{extension}")
                 self.current_gdf_level1.to_file(p, driver=driver)
                 exported.append(os.path.basename(p))
 
             if "niveau2" in selected_layers and self.current_gdf_level2 is not None:
-                p = os.path.join(folder, f"{pays}_{date_str}_niveau2{extension}")
+                p = os.path.join(folder, f"{pays}_subdivisions_{date_str}{extension}")
                 self.current_gdf_level2.to_file(p, driver=driver)
                 exported.append(os.path.basename(p))
 
             if "villes" in selected_layers and self.cities_gdf is not None:
-                p = os.path.join(folder, f"{pays}_{date_str}_villes{extension}")
+                p = os.path.join(folder, f"{pays}_villes_{date_str}{extension}")
                 self.cities_gdf.to_file(p, driver=driver)
                 exported.append(os.path.basename(p))
 
@@ -933,8 +1012,9 @@ class MawaquitApp:
                     iso_gdf = gpd.GeoDataFrame(
                         band_polygons, geometry='geometry', crs='EPSG:4326'
                     )
+                    # Nom expressif : pays_isochrones_prière_date
                     p = os.path.join(folder,
-                                     f"{pays}_{date_str}_isochrones_{current_prayer}{extension}")
+                                     f"{pays}_isochrones_{current_prayer}_{date_str}{extension}")
                     iso_gdf.to_file(p, driver=driver)
                     exported.append(os.path.basename(p))
 

@@ -118,8 +118,9 @@ class IsochroneGenerator:
     def _update_title(self):
         if self.current_country and self.current_prayer:
             prayer_names_fr = {
-                'fajr': 'Fajr', 'sunrise': 'Lever du soleil', 'dhuhr': 'Dhuhr',
-                'asr': 'Asr', 'sunset': 'Coucher du soleil', 'maghrib': 'Maghrib', 'isha': 'Isha'
+                'imsak': 'Imsak', 'fajr': 'Fajr', 'sunrise': 'Lever du soleil', 'dhuhr': 'Dhuhr',
+                'asr': 'Asr', 'sunset': 'Coucher du soleil', 'maghrib': 'Maghrib',
+                'iftar': 'Iftar', 'isha': 'Isha'
             }
             prayer_display = prayer_names_fr.get(self.current_prayer, self.current_prayer.capitalize())
             self.ax.set_title(f"{self.current_country} - Courbes isochrones de {prayer_display}",
@@ -296,16 +297,19 @@ class IsochroneGeneratorDirect(IsochroneGenerator):
         fajr_angle = self._eval(settings.get('fajr', 18))
         isha_angle = self._eval(settings.get('isha', 17))
         maghrib_angle = self._eval(settings.get('maghrib', 0))
+        imsak_angle = self._eval(settings.get('imsak', 10))  # Par défaut 10 min avant Fajr
         asr_param = settings.get('asr', 'Standard')
         asr_factor = 1 if asr_param == 'Standard' else (2 if asr_param == 'Hanafi' else self._eval(asr_param))
 
         prayer_config = {
+            'imsak': (fajr_angle, 'ccw', False, None),  # Même angle que Fajr (décalage géré ailleurs)
             'fajr': (fajr_angle, 'ccw', False, None),
             'sunrise': (0.833, 'ccw', False, None),
             'dhuhr': (0, None, False, None),
             'asr': (None, 'cw', True, asr_factor),
             'sunset': (0.833, 'cw', False, None),
             'maghrib': (maghrib_angle if maghrib_angle > 0 else 0.833, 'cw', False, None),
+            'iftar': (maghrib_angle if maghrib_angle > 0 else 0.833, 'cw', False, None),  # Identique à Maghrib
             'isha': (isha_angle, 'cw', False, None),
         }
         return prayer_config.get(prayer)
@@ -316,6 +320,10 @@ class IsochroneGeneratorDirect(IsochroneGenerator):
             return float(st)
         val = re.split('[^0-9.+-]', str(st), 1)[0]
         return float(val) if val else 0
+
+    def _is_min(self, arg):
+        """Vérifie si l'argument est en minutes"""
+        return isinstance(arg, str) and 'min' in arg
 
     def _julian(self, year, month, day):
         if month <= 2:
@@ -406,6 +414,14 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         angle, direction, is_asr, asr_factor = prayer_params
 
+        # Décalage temporel pour Imsak (en heures, à ajouter à l'heure cible pour le calcul)
+        # Imsak = Fajr - offset, donc pour calculer où Imsak = T, on calcule où Fajr = T + offset
+        time_offset = 0
+        if prayer_name == 'imsak':
+            imsak_param = self.pray_calc.settings.get('imsak', '10 min')
+            if self._is_min(imsak_param):
+                time_offset = self._eval(imsak_param) / 60.0  # Convertir en heures
+
         # Échantillonner pour trouver la plage d'heures
         sample_times = []
         for lat in np.linspace(min_lat, max_lat, 10):
@@ -429,8 +445,9 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
         lats = np.linspace(min_lat, max_lat, self.num_lat_points)
 
         for idx, target_minute in enumerate(minutes_list):
-            time_low = (target_minute - 0.5) / 60.0
-            time_high = (target_minute + 0.5) / 60.0
+            # Appliquer le décalage temporel pour Imsak
+            time_low = (target_minute - 0.5) / 60.0 + time_offset
+            time_high = (target_minute + 0.5) / 60.0 + time_offset
 
             curve_low = []
             curve_high = []
@@ -568,6 +585,13 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         angle, direction, is_asr, asr_factor = prayer_params
 
+        # Décalage temporel pour Imsak
+        time_offset = 0
+        if prayer_name == 'imsak':
+            imsak_param = self.pray_calc.settings.get('imsak', '10 min')
+            if self._is_min(imsak_param):
+                time_offset = self._eval(imsak_param) / 60.0
+
         sample_times = []
         for lat in np.linspace(min_lat, max_lat, 10):
             for lon in np.linspace(min_lon, max_lon, 10):
@@ -592,8 +616,8 @@ class IsochroneGeneratorBands(IsochroneGeneratorDirect):
 
         polygons = []
         for idx, target_minute in enumerate(minutes_list):
-            time_low = (target_minute - 0.5) / 60.0
-            time_high = (target_minute + 0.5) / 60.0
+            time_low = (target_minute - 0.5) / 60.0 + time_offset
+            time_high = (target_minute + 0.5) / 60.0 + time_offset
 
             curve_low = []
             curve_high = []

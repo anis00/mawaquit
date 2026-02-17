@@ -72,12 +72,14 @@ function getPrayerParams(prayer, settings) {
     const asrFactor = asrParam === 'Standard' ? 1 : (asrParam === 'Hanafi' ? 2 : evalParam(asrParam));
 
     const config = {
+        imsak: [fajrAngle, 'ccw', false, null],  // Same angle as Fajr (offset handled elsewhere)
         fajr: [fajrAngle, 'ccw', false, null],
         sunrise: [0.833, 'ccw', false, null],
         dhuhr: [0, null, false, null],
         asr: [null, 'cw', true, asrFactor],
         sunset: [0.833, 'cw', false, null],
         maghrib: [maghribAngle > 0 ? maghribAngle : 0.833, 'cw', false, null],
+        iftar: [maghribAngle > 0 ? maghribAngle : 0.833, 'cw', false, null],  // Same as Maghrib
         isha: [ishaAngle, 'cw', false, null]
     };
 
@@ -170,6 +172,13 @@ function formatTime(minutes) {
 /**
  * Generate isochrone bands for a prayer
  */
+/**
+ * Check if parameter is in minutes
+ */
+function isMin(arg) {
+    return typeof arg === 'string' && arg.indexOf('min') > -1;
+}
+
 function generateIsochrones(params) {
     const {
         prayer,
@@ -189,6 +198,15 @@ function generateIsochrones(params) {
     }
 
     const [angle, direction, isAsr, asrFactor] = prayerParams;
+
+    // Time offset for Imsak (Imsak = Fajr - offset, so we add offset to target time)
+    let timeOffset = 0;
+    if (prayer === 'imsak') {
+        const imsakParam = settings.imsak || '10 min';
+        if (isMin(imsakParam)) {
+            timeOffset = evalParam(imsakParam) / 60.0;  // Convert to hours
+        }
+    }
 
     // Calculate Julian date
     const jd = julian(date[0], date[1], date[2]);
@@ -263,8 +281,9 @@ function generateIsochrones(params) {
 
     for (let idx = 0; idx < minutesList.length; idx++) {
         const targetMinute = minutesList[idx];
-        const timeLow = (targetMinute - 0.5) / 60.0;
-        const timeHigh = (targetMinute + 0.5) / 60.0;
+        // Apply time offset for Imsak
+        const timeLow = (targetMinute - 0.5) / 60.0 + timeOffset;
+        const timeHigh = (targetMinute + 0.5) / 60.0 + timeOffset;
 
         const curveLow = [];
         const curveHigh = [];

@@ -50,6 +50,7 @@ https://anis00.github.io/mawaquit/
 ### Fonctionnalités
 - 33 pays avec données géographiques pré-chargées
 - 7 méthodes de calcul (MWL, ISNA, Egypt, Makkah, Karachi, Tehran, Jafari)
+- Mode Ramadan : affichage optionnel de Imsak et Iftar
 - Isochrones avec 2 nuances de bleu alternées
 - Étiquettes toujours visibles
 
@@ -95,6 +96,18 @@ Où H = angle horaire calculé pour la latitude φ
 3. **IsochroneGeneratorBands** : Bandes colorées clippées par les frontières - **UTILISÉE**
 
 ## Historique des versions
+
+### v3.3.0 (Février 2026)
+- **Mode Ramadan** : Ajout d'une checkbox "Mode Ramadan" pour afficher Imsak et Iftar
+- Imsak : 10 minutes avant Fajr (calculé avec décalage temporel pour les isochrones)
+- Iftar : Identique à Maghrib (heure de rupture du jeûne)
+- Boutons isochrones dédiés pour Imsak et Iftar (section séparée "Mode Ramadan")
+- Style visuel distinct (vert) pour les heures de jeûne
+- Export GeoPackage inclut Imsak/Iftar si mode Ramadan activé
+- **Noms d'export améliorés** : noms expressifs pour Shapefile/GeoJSON/GeoPackage
+  - `{pays}_frontieres`, `{pays}_regions`, `{pays}_subdivisions`, `{pays}_villes`
+  - `{pays}_isochrones_{prayer}_{date}`
+- Implémenté dans les deux versions (Desktop et Web)
 
 ### v3.2.0 (Février 2026)
 - **Clipping des isochrones** : Les bandes isochrones sont désormais clippées par les frontières du pays via intersection Shapely (`band_poly.intersection(country_shape)`), au lieu de couvrir le rectangle englobant

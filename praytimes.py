@@ -22,6 +22,7 @@ class PrayTimes():
         'asr': 'Asr',
         'sunset': 'Sunset',
         'maghrib': 'Maghrib',
+        'iftar': 'Iftar',
         'isha': 'Isha',
         'midnight': 'Midnight'
     }
@@ -210,6 +211,9 @@ class PrayTimes():
             times['midnight'] = times['sunset'] + self.timeDiff(times['sunset'], times['fajr']) / 2
         else:
             times['midnight'] = times['sunset'] + self.timeDiff(times['sunset'], times['sunrise']) / 2
+
+        # Iftar est identique à Maghrib (pour le Ramadan)
+        times['iftar'] = times['maghrib']
 
         times = self.tuneTimes(times)
         return self.modifyFormats(times)
