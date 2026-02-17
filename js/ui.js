@@ -10,6 +10,7 @@ class UIManager {
             methodSelect: document.getElementById('method-select'),
             dateInput: document.getElementById('date-input'),
             showLevel2: document.getElementById('show-level2'),
+            ramadanMode: document.getElementById('ramadan-mode'),
             coordinates: document.getElementById('coordinates'),
             statusBar: document.getElementById('status-bar'),
             loadingOverlay: document.getElementById('loading-overlay'),
@@ -17,22 +18,33 @@ class UIManager {
             clearIsochrones: document.getElementById('clear-isochrones')
         };
 
+        // Ramadan mode elements (hidden by default)
+        this.ramadanElements = {
+            rowImsak: document.getElementById('row-imsak'),
+            rowIftar: document.getElementById('row-iftar'),
+            ramadanIsoButtons: document.getElementById('ramadan-iso-buttons')
+        };
+
         // Prayer time elements
         this.prayerElements = {
+            imsak: document.getElementById('time-imsak'),
             fajr: document.getElementById('time-fajr'),
             sunrise: document.getElementById('time-sunrise'),
             dhuhr: document.getElementById('time-dhuhr'),
             asr: document.getElementById('time-asr'),
             maghrib: document.getElementById('time-maghrib'),
+            iftar: document.getElementById('time-iftar'),
             isha: document.getElementById('time-isha')
         };
 
         // Isochrone buttons
         this.isoButtons = {
+            imsak: document.getElementById('iso-imsak'),
             fajr: document.getElementById('iso-fajr'),
             dhuhr: document.getElementById('iso-dhuhr'),
             asr: document.getElementById('iso-asr'),
             maghrib: document.getElementById('iso-maghrib'),
+            iftar: document.getElementById('iso-iftar'),
             isha: document.getElementById('iso-isha')
         };
 
@@ -41,6 +53,7 @@ class UIManager {
         this.onMethodChange = null;
         this.onDateChange = null;
         this.onLevel2Toggle = null;
+        this.onRamadanModeToggle = null;
         this.onIsochroneRequest = null;
         this.onClearIsochrones = null;
 
@@ -77,6 +90,14 @@ class UIManager {
         this.elements.showLevel2.addEventListener('change', () => {
             if (this.onLevel2Toggle) {
                 this.onLevel2Toggle(this.elements.showLevel2.checked);
+            }
+        });
+
+        // Ramadan mode toggle
+        this.elements.ramadanMode.addEventListener('change', () => {
+            this.toggleRamadanMode(this.elements.ramadanMode.checked);
+            if (this.onRamadanModeToggle) {
+                this.onRamadanModeToggle(this.elements.ramadanMode.checked);
             }
         });
 
@@ -266,13 +287,52 @@ class UIManager {
     setActiveIsoButton(prayer) {
         for (const [p, button] of Object.entries(this.isoButtons)) {
             if (p === prayer) {
-                button.classList.remove('bg-blue-100', 'text-blue-800');
-                button.classList.add('bg-blue-600', 'text-white');
+                // Handle both blue (regular) and green (Ramadan) buttons
+                if (p === 'imsak' || p === 'iftar') {
+                    button.classList.remove('bg-green-100', 'text-green-800');
+                    button.classList.add('bg-green-600', 'text-white');
+                } else {
+                    button.classList.remove('bg-blue-100', 'text-blue-800');
+                    button.classList.add('bg-blue-600', 'text-white');
+                }
             } else {
-                button.classList.remove('bg-blue-600', 'text-white');
-                button.classList.add('bg-blue-100', 'text-blue-800');
+                if (p === 'imsak' || p === 'iftar') {
+                    button.classList.remove('bg-green-600', 'text-white');
+                    button.classList.add('bg-green-100', 'text-green-800');
+                } else {
+                    button.classList.remove('bg-blue-600', 'text-white');
+                    button.classList.add('bg-blue-100', 'text-blue-800');
+                }
             }
         }
+    }
+
+    /**
+     * Toggle Ramadan mode (show/hide Imsak and Iftar)
+     * @param {boolean} enabled
+     */
+    toggleRamadanMode(enabled) {
+        const { rowImsak, rowIftar, ramadanIsoButtons } = this.ramadanElements;
+
+        if (enabled) {
+            // Show Ramadan elements
+            rowImsak.classList.remove('hidden');
+            rowIftar.classList.remove('hidden');
+            ramadanIsoButtons.classList.remove('hidden');
+        } else {
+            // Hide Ramadan elements
+            rowImsak.classList.add('hidden');
+            rowIftar.classList.add('hidden');
+            ramadanIsoButtons.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Check if Ramadan mode is enabled
+     * @returns {boolean}
+     */
+    isRamadanModeEnabled() {
+        return this.elements.ramadanMode.checked;
     }
 }
 

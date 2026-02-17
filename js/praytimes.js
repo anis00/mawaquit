@@ -13,6 +13,7 @@ class PrayTimes {
         asr: 'Asr',
         sunset: 'Sunset',
         maghrib: 'Maghrib',
+        iftar: 'Iftar',
         isha: 'Isha',
         midnight: 'Midnight'
     };
@@ -233,6 +234,9 @@ class PrayTimes {
         } else {
             times.midnight = times.sunset + this.timeDiff(times.sunset, times.sunrise) / 2;
         }
+
+        // Iftar is identical to Maghrib (for Ramadan)
+        times.iftar = times.maghrib;
 
         times = this.tuneTimes(times);
         return this.modifyFormats(times);
