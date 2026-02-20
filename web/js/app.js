@@ -273,7 +273,13 @@ class MawaquitApp {
                 throw new Error(result.error);
             }
 
-            mapManager.drawIsochrones(result.bands);
+            // Clip isochrones by country boundary
+            let bands = result.bands;
+            if (this.state.countryData[0]) {
+                bands = clipIsochrones(bands, this.state.countryData[0]);
+            }
+
+            mapManager.drawIsochrones(bands);
             this.state.activeIsochrone = prayer;
 
             uiManager.hideLoading();
