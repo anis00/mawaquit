@@ -44,6 +44,7 @@ https://anis00.github.io/mawaquit/
 ### Technologies utilisées
 - **Leaflet.js** - Carte interactive
 - **Tailwind CSS** - Styles (via CDN)
+- **Turf.js** - Opérations géométriques (clipping isochrones)
 - **Web Workers** - Calculs isochrones non-bloquants
 - **Données GADM** - Frontières simplifiées (hébergées localement)
 
@@ -51,7 +52,7 @@ https://anis00.github.io/mawaquit/
 - 33 pays avec données géographiques pré-chargées
 - 7 méthodes de calcul (MWL, ISNA, Egypt, Makkah, Karachi, Tehran, Jafari)
 - Mode Ramadan : affichage optionnel de Imsak et Iftar
-- Isochrones avec 2 nuances de bleu alternées
+- Isochrones avec 2 nuances de bleu alternées, clippées par les frontières
 - Étiquettes toujours visibles
 
 ### Déploiement GitHub Pages
@@ -96,6 +97,16 @@ Où H = angle horaire calculé pour la latitude φ
 3. **IsochroneGeneratorBands** : Bandes colorées clippées par les frontières - **UTILISÉE**
 
 ## Historique des versions
+
+### v3.3.2 (Février 2026)
+- **Fix isochrones Imsak web** : Correction de la plage de temps lors de l'échantillonnage
+  - Soustraction du timeOffset pour obtenir les temps Imsak (et non Fajr)
+  - Les isochrones couvrent maintenant tout le pays
+- **Clipping isochrones web** : Les bandes sont désormais clippées par les frontières
+  - Ajout de Turf.js pour les opérations géométriques
+  - Fonction `clipIsochrones()` dans utils.js utilisant `turf.intersect()`
+  - Gestion des Polygon, MultiPolygon et GeometryCollection
+- Parité fonctionnelle Desktop/Web atteinte pour les isochrones
 
 ### v3.3.1 (Février 2026)
 - **Fix précision isochrones** : Alignement du calcul de longitude avec praytimes.py
