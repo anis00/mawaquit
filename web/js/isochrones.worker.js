@@ -261,7 +261,8 @@ function generateIsochrones(params) {
                 const baseTime = 12 - eqt + timezone - lon / 15;
 
                 if (direction === null) {
-                    sampleTimes.push(baseTime * 60);
+                    // For Imsak, subtract offset to get actual Imsak time (not Fajr time)
+                    sampleTimes.push((baseTime - timeOffset) * 60);
                 } else {
                     try {
                         const cosLat = cos(lat);
@@ -278,7 +279,8 @@ function generateIsochrones(params) {
                         if (Math.abs(cosH) <= 1) {
                             const H = arccos(cosH);
                             const time = direction === 'ccw' ? baseTime - H / 15 : baseTime + H / 15;
-                            sampleTimes.push(time * 60);
+                            // For Imsak, subtract offset to get actual Imsak time (not Fajr time)
+                            sampleTimes.push((time - timeOffset) * 60);
                         }
                     } catch (e) {
                         // Skip invalid points
