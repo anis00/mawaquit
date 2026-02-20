@@ -53,7 +53,7 @@ https://anis00.github.io/mawaquit/
 - 7 méthodes de calcul (MWL, ISNA, Egypt, Makkah, Karachi, Tehran, Jafari)
 - Mode Ramadan : affichage optionnel de Imsak et Iftar
 - Isochrones avec 2 nuances de bleu alternées, clippées par les frontières
-- Étiquettes toujours visibles
+- Étiquettes dynamiques : repositionnement automatique selon le zoom/pan
 
 ### Déploiement GitHub Pages
 ```bash
@@ -97,6 +97,14 @@ Où H = angle horaire calculé pour la latitude φ
 3. **IsochroneGeneratorBands** : Bandes colorées clippées par les frontières - **UTILISÉE**
 
 ## Historique des versions
+
+### v3.3.3 (Février 2026)
+- **Étiquettes isochrones dynamiques** (Web) : Repositionnement automatique selon la vue
+  - Les étiquettes suivent le zoom/pan et restent toujours visibles
+  - Calcul de l'intersection bande/viewport avec Turf.js
+  - Placement au centroïde de la zone visible de chaque bande
+  - Groupement des polygons par minute pour éviter les doublons
+  - Événements `moveend` et `zoomend` déclenchent le recalcul
 
 ### v3.3.2 (Février 2026)
 - **Fix isochrones Imsak web** : Correction de la plage de temps lors de l'échantillonnage
