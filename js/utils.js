@@ -183,3 +183,123 @@ function toRadians(degrees) {
 function toDegrees(radians) {
     return radians * 180 / Math.PI;
 }
+
+/**
+ * Clip isochrone bands by country boundary using Turf.js
+ * @param {Array} bands - Array of band objects with polygons
+ * @param {Object} countryGeoJSON - Country GeoJSON (level 0)
+ * @returns {Array} Clipped bands
+ */
+function clipIsochrones(bands, countryGeoJSON) {
+    if (!countryGeoJSON || !bands || bands.length === 0) {
+        return bands;
+    }
+
+    // Check if turf is available
+    if (typeof turf === 'undefined') {
+        console.warn('Turf.js not loaded, skipping clipping');
+        return bands;
+    }
+
+    try {
+        // Get country geometry (handle FeatureCollection or single Feature)
+        let countryFeature;
+        if (countryGeoJSON.type === 'FeatureCollection') {
+            // Merge all features into one MultiPolygon if needed
+            const features = countryGeoJSON.features;
+            if (features.length === 1) {
+                countryFeature = features[0];
+            } else {
+                // Combine multiple features
+                countryFeature = turf.combine(turf.featureCollection(features));
+                if (countryFeature.features) {
+                    countryFeature = countryFeature.features[0];
+                }
+            }
+        } else if (countryGeoJSON.type === 'Feature') {
+            countryFeature = countryGeoJSON;
+        } else {
+            countryFeature = turf.feature(countryGeoJSON);
+        }
+
+        const clippedBands = [];
+
+        for (const band of bands) {
+            if (!band.polygon || band.polygon.length < 4) {
+                continue;
+            }
+
+            try {
+                // Create polygon from band coordinates [lon, lat]
+                // Ensure the polygon is closed
+                const coords = [...band.polygon];
+                if (coords[0][0] !== coords[coords.length - 1][0] ||
+                    coords[0][1] !== coords[coords.length - 1][1]) {
+                    coords.push(coords[0]);
+                }
+
+                const bandPolygon = turf.polygon([coords]);
+
+                // Intersect with country boundary
+                const clipped = turf.intersect(
+                    turf.featureCollection([bandPolygon, countryFeature])
+                );
+
+                if (clipped) {
+                    // Handle different geometry types from intersection
+                    const geomType = clipped.geometry.type;
+
+                    if (geomType === 'Polygon') {
+                        // Single polygon result
+                        clippedBands.push({
+                            ...band,
+                            polygon: clipped.geometry.coordinates[0]
+                        });
+                    } else if (geomType === 'MultiPolygon') {
+                        // Multiple polygons - create a band for each
+                        for (const polyCoords of clipped.geometry.coordinates) {
+                            clippedBands.push({
+                                ...band,
+                                polygon: polyCoords[0],
+                                // Only keep label on first polygon
+                                label: clippedBands.length === 0 ||
+                                       clippedBands[clippedBands.length - 1].minute !== band.minute
+                                       ? band.label : null,
+                                labelPos: clippedBands.length === 0 ||
+                                          clippedBands[clippedBands.length - 1].minute !== band.minute
+                                          ? band.labelPos : null
+                            });
+                        }
+                    } else if (geomType === 'GeometryCollection') {
+                        // Extract polygons from collection
+                        for (const geom of clipped.geometry.geometries) {
+                            if (geom.type === 'Polygon') {
+                                clippedBands.push({
+                                    ...band,
+                                    polygon: geom.coordinates[0]
+                                });
+                            } else if (geom.type === 'MultiPolygon') {
+                                for (const polyCoords of geom.coordinates) {
+                                    clippedBands.push({
+                                        ...band,
+                                        polygon: polyCoords[0]
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                // If clipping fails for a band, keep the original
+                console.warn('Clipping failed for band:', e.message);
+                clippedBands.push(band);
+            }
+        }
+
+        return clippedBands;
+
+    } catch (error) {
+        console.error('Error in clipIsochrones:', error);
+        return bands;
+    }
+}
