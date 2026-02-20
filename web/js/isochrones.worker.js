@@ -87,7 +87,7 @@ function getPrayerParams(prayer, settings) {
 }
 
 /**
- * Compute longitude for a single point
+ * Compute longitude for a single point (fallback method)
  */
 function computeLonSingle(lat, targetTime, decl, eqt, tzRef, angle, direction, isAsr, asrFactor) {
     if (isAsr) {
@@ -124,40 +124,77 @@ function computeLonSingle(lat, targetTime, decl, eqt, tzRef, angle, direction, i
 
 /**
  * Compute longitude with JD refinement
+ * Uses the same logic as praytimes.py for better precision
  */
 function computeLongitude(lat, targetTime, decl, eqt, tzRef, angle, direction, isAsr, asrFactor, jdBase) {
-    // Dhuhr case - vertical lines
-    if (direction === null) {
-        let lon = 15 * (12 - eqt + tzRef - targetTime);
-        if (jdBase !== null) {
-            for (let i = 0; i < 2; i++) {
-                const jdAdj = jdBase - lon / (15 * 24.0);
-                const [newDecl, newEqt] = sunPosition(jdAdj);
-                lon = 15 * (12 - newEqt + tzRef - targetTime);
+    if (jdBase === null) {
+        // Fallback to old method without refinement
+        return computeLonSingle(lat, targetTime, decl, eqt, tzRef, angle, direction, isAsr, asrFactor);
+    }
+
+    // Convert targetTime to day fraction for JD adjustment
+    const timeFraction = targetTime / 24.0;
+
+    // Iterate to refine (like praytimes.numIterations)
+    for (let iter = 0; iter < 2; iter++) {
+        // JD adjusted by target time (like jDate + time in praytimes)
+        const jdAdj = jdBase + timeFraction;
+        const [newDecl, newEqt] = sunPosition(jdAdj);
+
+        // Dhuhr case - vertical lines
+        if (direction === null) {
+            const lon = 15 * (12 - newEqt + tzRef - targetTime);
+            return lon;
+        }
+
+        // Calculate angle for Asr if needed
+        let effectiveAngle = angle;
+        if (isAsr) {
+            try {
+                effectiveAngle = -arccot(asrFactor + tan(Math.abs(lat - newDecl)));
+            } catch (e) {
+                return null;
             }
         }
-        return lon;
-    }
 
-    let lon = computeLonSingle(lat, targetTime, decl, eqt, tzRef, angle, direction, isAsr, asrFactor);
-    if (lon === null) {
-        return null;
-    }
+        try {
+            const cosLat = cos(lat);
+            const sinLat = sin(lat);
+            const cosDecl = cos(newDecl);
+            const sinDecl = sin(newDecl);
 
-    // Refine with JD iteration
-    if (jdBase !== null) {
-        for (let i = 0; i < 2; i++) {
-            const jdAdj = jdBase - lon / (15 * 24.0);
-            const [newDecl, newEqt] = sunPosition(jdAdj);
-            const lonNew = computeLonSingle(lat, targetTime, newDecl, newEqt, tzRef, angle, direction, isAsr, asrFactor);
-            if (lonNew === null) {
-                return lon;
+            if (Math.abs(cosLat) < 1e-10 || Math.abs(cosDecl) < 1e-10) {
+                return null;
             }
-            lon = lonNew;
+
+            const cosH = (-sin(effectiveAngle) - sinDecl * sinLat) / (cosDecl * cosLat);
+            if (Math.abs(cosH) > 1) {
+                return null;
+            }
+
+            // t in hours (like praytimes.sunAngleTime)
+            const t = arccos(cosH) / 15.0;
+
+            // noon in hours (like praytimes.midDay)
+            const noon = fixhour(12 - newEqt);
+
+            // Prayer time in local solar time
+            const prayerTimeSolar = direction === 'cw' ? noon + t : noon - t;
+
+            // Calculate longitude where this prayer = targetTime
+            // prayer_time_local = prayer_time_solar + (tz - lon/15)
+            // targetTime = prayer_time_solar + tz - lon/15
+            // lon = 15 * (prayer_time_solar + tz - targetTime)
+            const lon = 15 * (prayerTimeSolar + tzRef - targetTime);
+
+            return lon;
+
+        } catch (e) {
+            return null;
         }
     }
 
-    return lon;
+    return null;
 }
 
 /**

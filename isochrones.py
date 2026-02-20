@@ -238,34 +238,88 @@ class IsochroneGeneratorDirect(IsochroneGenerator):
 
     def _compute_longitude(self, lat, target_time, decl, eqt, tz_ref,
                            angle, direction, is_asr, asr_factor, jd_base=None):
-        if direction is None:  # Dhuhr
-            lon = 15 * (12 - eqt + tz_ref - target_time)
-            if jd_base is not None:
-                for _ in range(2):
-                    jd_adj = jd_base - lon / (15 * 24.0)
-                    decl, eqt = self._sun_position(jd_adj)
-                    lon = 15 * (12 - eqt + tz_ref - target_time)
-            return lon
+        """
+        Calcule la longitude où une prière a lieu à target_time.
+        Utilise la même logique que praytimes.py pour une meilleure précision.
+        """
+        if jd_base is None:
+            # Fallback à l'ancienne méthode sans raffinement
+            return self._compute_lon_single(lat, target_time, decl, eqt, tz_ref,
+                                           angle, direction, is_asr, asr_factor)
 
-        lon = self._compute_lon_single(lat, target_time, decl, eqt, tz_ref,
-                                       angle, direction, is_asr, asr_factor)
-        if lon is None:
-            return None
+        # Méthode alignée sur praytimes.py :
+        # 1. Ajuster le JD par l'heure cible (comme praytimes fait avec jDate + time)
+        # 2. Calculer decl/eqt avec ce JD ajusté
+        # 3. Calculer noon et t comme praytimes
+        # 4. Déduire la longitude
 
-        if jd_base is not None:
-            for _ in range(2):
-                jd_adj = jd_base - lon / (15 * 24.0)
-                decl_new, eqt_new = self._sun_position(jd_adj)
-                lon_new = self._compute_lon_single(lat, target_time, decl_new, eqt_new,
-                                                   tz_ref, angle, direction, is_asr, asr_factor)
-                if lon_new is None:
-                    return lon
-                lon = lon_new
+        # Convertir target_time en fraction de jour pour l'ajustement JD
+        time_fraction = target_time / 24.0
 
-        return lon
+        # Itérer pour affiner (comme praytimes.numIterations)
+        for _ in range(2):
+            # JD ajusté par l'heure cible (comme jDate + time dans praytimes)
+            jd_adj = jd_base + time_fraction
+            decl, eqt = self._sun_position(jd_adj)
+
+            if direction is None:  # Dhuhr
+                # noon = 12 - eqt, et on veut noon + tz_adj = target_time
+                # Donc lon = 15 * (noon + tz - target_time) = 15 * (12 - eqt + tz - target_time)
+                lon = 15 * (12 - eqt + tz_ref - target_time)
+                return lon
+
+            # Calculer l'angle pour Asr si nécessaire
+            effective_angle = angle
+            if is_asr:
+                try:
+                    effective_angle = -self._arccot(asr_factor + self._tan(abs(lat - decl)))
+                except (ValueError, ZeroDivisionError):
+                    return None
+
+            try:
+                cos_lat = self._cos(lat)
+                sin_lat = self._sin(lat)
+                cos_decl = self._cos(decl)
+                sin_decl = self._sin(decl)
+
+                if abs(cos_lat) < 1e-10 or abs(cos_decl) < 1e-10:
+                    return None
+
+                cos_H = (-self._sin(effective_angle) - sin_decl * sin_lat) / (cos_decl * cos_lat)
+                if abs(cos_H) > 1:
+                    return None
+
+                # t en heures (comme dans praytimes.sunAngleTime)
+                t = self._arccos(cos_H) / 15.0
+
+                # noon en heures (comme dans praytimes.midDay)
+                noon = self._fixhour(12 - eqt)
+
+                # Heure de la prière en temps solaire local
+                prayer_time_solar = noon + t if direction == 'cw' else noon - t
+
+                # Pour trouver la longitude où cette prière = target_time :
+                # prayer_time_local = prayer_time_solar + (tz - lon/15)
+                # target_time = prayer_time_solar + tz - lon/15
+                # lon/15 = prayer_time_solar + tz - target_time
+                # lon = 15 * (prayer_time_solar + tz - target_time)
+                lon = 15 * (prayer_time_solar + tz_ref - target_time)
+
+                return lon
+
+            except (ValueError, ZeroDivisionError):
+                return None
+
+        return None
+
+    def _fixhour(self, hour):
+        """Normalise une heure dans [0, 24)"""
+        hour = hour - 24.0 * math.floor(hour / 24.0)
+        return hour + 24.0 if hour < 0 else hour
 
     def _compute_lon_single(self, lat, target_time, decl, eqt, tz_ref,
                             angle, direction, is_asr, asr_factor):
+        """Ancienne méthode de calcul (fallback)"""
         if is_asr:
             try:
                 angle = -self._arccot(asr_factor + self._tan(abs(lat - decl)))
