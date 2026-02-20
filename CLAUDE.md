@@ -97,6 +97,13 @@ Où H = angle horaire calculé pour la latitude φ
 
 ## Historique des versions
 
+### v3.3.1 (Février 2026)
+- **Fix précision isochrones** : Alignement du calcul de longitude avec praytimes.py
+- Correction de l'ajustement du jour julien : `jd + time_fraction` au lieu de `jd - lon/(15*24)`
+- Erreur réduite de 0.76 minutes à 0.03-0.14 minutes
+- L'heure affichée correspond maintenant exactement à la bande isochrone
+- Appliqué aux deux versions (Python et Web Worker JS)
+
 ### v3.3.0 (Février 2026)
 - **Mode Ramadan** : Ajout d'une checkbox "Mode Ramadan" pour afficher Imsak et Iftar
 - Imsak : 10 minutes avant Fajr (calculé avec décalage temporel pour les isochrones)
@@ -164,6 +171,7 @@ Où H = angle horaire calculé pour la latitude φ
 - [x] CORS avec GADM → Données locales simplifiées
 - [x] Chargement lent web → Fichiers GeoJSON optimisés
 - [x] Isochrones débordant du pays → Clipping par intersection Shapely avec les frontières
+- [x] Décalage heure affichée / bande isochrone → Alignement JD avec praytimes.py
 
 ## Améliorations potentielles
 
