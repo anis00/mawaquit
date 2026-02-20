@@ -11,6 +11,7 @@ class MapManager {
         this.level2Layer = null;
         this.isochroneLayers = [];
         this.isochroneLabels = [];  // Separate array for labels
+        this.isochroneBands = [];   // Store band data for dynamic label repositioning
         this.marker = null;
         this.bounds = null;
         this.maxZoom = 12;
@@ -20,6 +21,7 @@ class MapManager {
         this.isochroneColors = ['#90CAF9', '#1E88E5'];  // Light blue, Dark blue
 
         this.onMapClick = null;
+        this._updateLabelsHandler = null;
     }
 
     /**
@@ -46,6 +48,11 @@ class MapManager {
                 this.onMapClick(e.latlng.lat, e.latlng.lng);
             }
         });
+
+        // Set up handler for dynamic label repositioning
+        this._updateLabelsHandler = this._updateLabelPositions.bind(this);
+        this.map.on('moveend', this._updateLabelsHandler);
+        this.map.on('zoomend', this._updateLabelsHandler);
 
         return this;
     }
@@ -183,13 +190,17 @@ class MapManager {
         // Clear existing isochrones
         this.clearIsochrones();
 
+        // Group bands by minute to avoid duplicate labels
+        const bandsByMinute = new Map();
+
         bands.forEach((band, index) => {
             if (band.polygon && band.polygon.length >= 3) {
                 // Convert [lon, lat] to [lat, lon] for Leaflet
                 const latLngs = band.polygon.map(p => [p[1], p[0]]);
 
-                // Alternate between two blue colors
-                const color = this.isochroneColors[index % 2];
+                // Alternate between two blue colors based on minute
+                const colorIndex = band.minute !== undefined ? band.minute % 2 : index % 2;
+                const color = this.isochroneColors[colorIndex];
 
                 const polygon = L.polygon(latLngs, {
                     color: '#1565C0',      // Border color (darker blue)
@@ -200,22 +211,114 @@ class MapManager {
 
                 this.isochroneLayers.push(polygon);
 
-                // Add label at center if available
-                if (band.label && band.labelPos) {
-                    const labelMarker = L.marker([band.labelPos[1], band.labelPos[0]], {
-                        icon: L.divIcon({
-                            className: 'isochrone-label',
-                            html: `<div class="isochrone-time">${band.label}</div>`,
-                            iconSize: [60, 24],
-                            iconAnchor: [30, 12]
-                        }),
-                        interactive: false  // Don't interfere with map clicks
-                    }).addTo(this.map);  // Add directly to map
-
-                    this.isochroneLabels.push(labelMarker);
+                // Store band data for dynamic label positioning
+                // Group polygons by minute
+                if (band.label) {
+                    const minute = band.minute;
+                    if (!bandsByMinute.has(minute)) {
+                        bandsByMinute.set(minute, {
+                            label: band.label,
+                            polygons: []
+                        });
+                    }
+                    // Store polygon coordinates in [lon, lat] format for Turf
+                    bandsByMinute.get(minute).polygons.push(band.polygon);
                 }
             }
         });
+
+        // Convert grouped bands to array
+        this.isochroneBands = Array.from(bandsByMinute.values());
+
+        // Create initial labels
+        this._updateLabelPositions();
+    }
+
+    /**
+     * Update label positions based on current viewport
+     */
+    _updateLabelPositions() {
+        // Remove existing labels
+        this.isochroneLabels.forEach(marker => {
+            this.map.removeLayer(marker);
+        });
+        this.isochroneLabels = [];
+
+        if (this.isochroneBands.length === 0) return;
+
+        // Get current viewport bounds
+        const mapBounds = this.map.getBounds();
+        const viewportPoly = this._boundsToPolygon(mapBounds);
+
+        if (!viewportPoly) return;
+
+        // For each band group, find best label position within viewport
+        for (const bandGroup of this.isochroneBands) {
+            let bestCenter = null;
+            let bestArea = 0;
+
+            for (const polygonCoords of bandGroup.polygons) {
+                try {
+                    // Ensure polygon is closed
+                    const coords = [...polygonCoords];
+                    if (coords.length < 4) continue;
+                    if (coords[0][0] !== coords[coords.length - 1][0] ||
+                        coords[0][1] !== coords[coords.length - 1][1]) {
+                        coords.push(coords[0]);
+                    }
+
+                    const bandPoly = turf.polygon([coords]);
+
+                    // Intersect with viewport
+                    const intersection = turf.intersect(
+                        turf.featureCollection([bandPoly, viewportPoly])
+                    );
+
+                    if (intersection) {
+                        const area = turf.area(intersection);
+                        if (area > bestArea) {
+                            bestArea = area;
+                            bestCenter = turf.centroid(intersection).geometry.coordinates;
+                        }
+                    }
+                } catch (e) {
+                    // Skip invalid polygons
+                }
+            }
+
+            // Create label at best position
+            if (bestCenter && bestArea > 0) {
+                const labelMarker = L.marker([bestCenter[1], bestCenter[0]], {
+                    icon: L.divIcon({
+                        className: 'isochrone-label',
+                        html: `<div class="isochrone-time">${bandGroup.label}</div>`,
+                        iconSize: [60, 24],
+                        iconAnchor: [30, 12]
+                    }),
+                    interactive: false
+                }).addTo(this.map);
+
+                this.isochroneLabels.push(labelMarker);
+            }
+        }
+    }
+
+    /**
+     * Convert Leaflet bounds to Turf polygon
+     */
+    _boundsToPolygon(bounds) {
+        if (!bounds || typeof turf === 'undefined') return null;
+
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+
+        return turf.polygon([[
+            [sw.lng, sw.lat],
+            [ne.lng, sw.lat],
+            [ne.lng, ne.lat],
+            [sw.lng, ne.lat],
+            [sw.lng, sw.lat]
+        ]]);
     }
 
     /**
@@ -233,6 +336,9 @@ class MapManager {
             this.map.removeLayer(marker);
         });
         this.isochroneLabels = [];
+
+        // Clear band data
+        this.isochroneBands = [];
     }
 
     /**
