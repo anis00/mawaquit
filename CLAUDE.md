@@ -105,6 +105,7 @@ Où H = angle horaire calculé pour la latitude φ
   - Placement au centroïde de la zone visible de chaque bande
   - Groupement des polygons par minute pour éviter les doublons
   - Événements `moveend` et `zoomend` déclenchent le recalcul
+- **Fix API Turf.js** : Correction de l'appel `turf.intersect(poly1, poly2)` (et non `featureCollection`)
 
 ### v3.3.2 (Février 2026)
 - **Fix isochrones Imsak web** : Correction de la plage de temps lors de l'échantillonnage
