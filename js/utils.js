@@ -241,9 +241,7 @@ function clipIsochrones(bands, countryGeoJSON) {
                 const bandPolygon = turf.polygon([coords]);
 
                 // Intersect with country boundary
-                const clipped = turf.intersect(
-                    turf.featureCollection([bandPolygon, countryFeature])
-                );
+                const clipped = turf.intersect(bandPolygon, countryFeature);
 
                 if (clipped) {
                     // Handle different geometry types from intersection
@@ -272,18 +270,25 @@ function clipIsochrones(bands, countryGeoJSON) {
                         }
                     } else if (geomType === 'GeometryCollection') {
                         // Extract polygons from collection
+                        let firstForMinute = true;
                         for (const geom of clipped.geometry.geometries) {
                             if (geom.type === 'Polygon') {
                                 clippedBands.push({
                                     ...band,
-                                    polygon: geom.coordinates[0]
+                                    polygon: geom.coordinates[0],
+                                    label: firstForMinute ? band.label : null,
+                                    labelPos: firstForMinute ? band.labelPos : null
                                 });
+                                firstForMinute = false;
                             } else if (geom.type === 'MultiPolygon') {
                                 for (const polyCoords of geom.coordinates) {
                                     clippedBands.push({
                                         ...band,
-                                        polygon: polyCoords[0]
+                                        polygon: polyCoords[0],
+                                        label: firstForMinute ? band.label : null,
+                                        labelPos: firstForMinute ? band.labelPos : null
                                     });
+                                    firstForMinute = false;
                                 }
                             }
                         }

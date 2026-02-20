@@ -270,9 +270,7 @@ class MapManager {
                     const bandPoly = turf.polygon([coords]);
 
                     // Intersect with viewport
-                    const intersection = turf.intersect(
-                        turf.featureCollection([bandPoly, viewportPoly])
-                    );
+                    const intersection = turf.intersect(bandPoly, viewportPoly);
 
                     if (intersection) {
                         const area = turf.area(intersection);
